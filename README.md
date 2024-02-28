@@ -83,42 +83,6 @@ options:
   -H HEADERS, --headers HEADERS
                         Specify HTTP headers to use for the requests (Example: -H 'Header1:val1','Header2:val2'
   -d DATA, --data DATA  Enter the data to be inside the body of POST, PUT, PATCH methods (Example: -d "rawdata"
-
-D:\Python Scripts\PathPlunderer>python PathPlunderer.py -h
-usage: PathPlunderer.py [-h] -u URL -w WORDFILE [--user USER] [--pass PASSWORD] [-x EXTS] [-t THREADS] [-o LOGFILE]
-                        [-s CODES] [-m METHODS] [-f] [-z [USER_AGENT]] [-p PROXY_URL] [-r] [-k] [--timeout TIMEOUT]
-                        [-c COOKIES] [-H HEADERS] [-d DATA]
-
-Python Web Directory and File Brute Forcer
-
-options:
-  -h, --help            show this help message and exit
-  -u URL, --url URL     The url to start brute foroce from.
-  -w WORDFILE, --wordlist WORDFILE
-                        The wordlist to use for brute force.
-  --user USER           Username for Basic Auth
-  --pass PASSWORD       Password for Basic Auth
-  -x EXTS               File Extensions - must be comma delimited list (Example: -x php,pdf)
-  -t THREADS, --threads THREADS
-                        The amount of threads to use.
-  -o LOGFILE, --output LOGFILE
-                        File to log results. (Example: -o Results.txt)
-  -s CODES              HTTP Status Codes to accept in a comma delimited list. Default - 200,204,301,302,307,401,403
-  -m METHODS            Use the following HTTP methods POST, HEAD, PUT, OPTIONS, PATCH. (default "GET")
-  -f                    Force wildcard proccessing.
-  -z [USER_AGENT], --user-agent [USER_AGENT]
-                        Custom or random user agent. -z 'User-agent' for custom. -z for random
-  -p PROXY_URL, --proxy PROXY_URL
-                        Proxy to use for requests [http(s)://host:port]
-  -r, --follow-redirect
-                        Follow redirects
-  -k, --insecure        Allow insecure server connections
-  --timeout TIMEOUT     HTTP Timeout (default 10s)
-  -c COOKIES, --cookies COOKIES
-                        Cookies to use for the requests (Example: -c 'session=123456')
-  -H HEADERS, --headers HEADERS
-                        Specify HTTP headers to use for the requests (Example: -H 'Header1:val1','Header2:val2'
-  -d DATA, --data DATA  Enter the data to be inside the body of POST, PUT, PATCH methods (Example: -d "rawdata")
 ```
 
 ## Examples
