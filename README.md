@@ -1,2 +1,2 @@
 # PathPlunderer
-Python Web Directory and File Brute Forcer
+PathPlunderer is a tool used to brute-force URIs (directories and files) in websites.
