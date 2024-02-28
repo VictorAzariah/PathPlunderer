@@ -1,0 +1,11 @@
+certifi==2020.6.20
+cffi==1.14.3
+chardet==3.0.4
+cryptography>=3.3.2
+idna==2.10
+ntlm-auth==1.5.0
+pycparser==2.20
+requests==2.24.0
+six==1.15.0
+tqdm==4.51.0
+urllib3==1.25.11
