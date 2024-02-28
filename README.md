@@ -48,6 +48,10 @@ pip install -r requirements.txt
 
 ## Options
 
+Help is built-in!
+
+- `python PathPlunderer.py -h (or) --help` - outputs the the help menu.
+
 ```text
 usage: PathPlunderer.py [-h] -u URL -w WORDFILE [--user USER] [--pass PASSWORD] [-x EXTS] [-t THREADS] [-o LOGFILE]
                         [-s CODES] [-m METHODS] [-f] [-z [USER_AGENT]] [-p PROXY_URL] [-r] [-k] [--timeout TIMEOUT]
