@@ -6,18 +6,18 @@ PathPlunderer is a tool used to brute-force URIs (directories and files) in webs
 
 ## 2.0
 
-- Accepts insecure communication using option -k (or) --insecure
+- Accepts insecure communication using option `-k` (or) `--insecure`
 - Even if someone gives only the domain name in the URL field, it will automatically find the correct protocol for it
 - Accepting status codes in range (200-400) and sort them
 - While being recursive stop the current path by using ctrl+c
-- --timeout duration                    HTTP Timeout (default 10s)
-- -p, --proxy                           Proxy to use for requests [http(s)://host:port]
-- -r, --follow-redirect                 Follow redirects
+- `--timeout duration`                    HTTP Timeout (default 10s)
+- `-p`, `--proxy`                           Proxy to use for requests [http(s)://host:port]
+- `-r`, `--follow-redirect`                 Follow redirects
 - Showing the response size
-- -c, --cookies string                  Cookies to use for the requests (Example: -c 'session=123456')
-- -H, --headers string                  Specify HTTP headers, -H 'Header1:val1,Header2:val2'
-- -m, --method string                   Use the following HTTP method (default "GET")
-- -d, --data  Storing                   Enter the data to be inside the body of POST, PUT, PATCH methods
+- `-c`, `--cookies string`                  Cookies to use for the requests
+- `-H`, `--headers string`                  Specify HTTP headers
+- `-m`, `--method string`                   Use the following HTTP method (default "GET")
+- `-d`, `--data`                            Enter the data to be inside the body of POST, PUT, PATCH methods
 - Find directories and files using Basic Auth
 
 # License
