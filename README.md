@@ -26,7 +26,7 @@ See the LICENSE file.
 
 # Manual
 
-## Easy Installation
+## Installation
 
 This command will clone the GitHub repository into the folder `PathPlunderer`:
 
