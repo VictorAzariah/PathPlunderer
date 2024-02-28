@@ -95,7 +95,8 @@ python PathPlunderer.py -u <url> -w <wordlist>
 Normal sample run goes like this:
 
 ```text
-python PathPlunderer.py -u http://testphp.vulnweb.com -w wordlist.txt -k -x php
+ python PathPlunderer.py -u http://testphp.vulnweb.com -w wordlist.txt -k -x php
+
 (======================================================================================================================)
 
      ____          _    _      ____   _                    _
