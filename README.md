@@ -98,7 +98,7 @@ python PathPlunderer.py -u <url> -w <wordlist>
 
 Normal sample run goes like this:
 
-[![POC]](https://drive.google.com/file/d/18iuIPGbyeNuK2wcNblF-qJCZB42OlnGI/view?usp=drive_link)
+[POC](POC/video%20poc.mp4.mp4)
 
 # Credits
 
