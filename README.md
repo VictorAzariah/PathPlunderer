@@ -98,7 +98,7 @@ python PathPlunderer.py -u <url> -w <wordlist>
 
 Normal sample run goes like this:
 
-[POC](POC/poc.mp4)
+[POC](POC/poc.gif)
 
 # Credits
 
