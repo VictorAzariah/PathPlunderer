@@ -98,7 +98,7 @@ python PathPlunderer.py -u <url> -w <wordlist>
 
 Normal sample run goes like this:
 
-Alt text: https://drive.google.com/file/d/18iuIPGbyeNuK2wcNblF-qJCZB42OlnGI/view?usp=drive_link
+![POC](https://drive.google.com/file/d/18iuIPGbyeNuK2wcNblF-qJCZB42OlnGI/view?usp=drive_link)
 
 # Credits
 
