@@ -98,7 +98,7 @@ python PathPlunderer.py -u <url> -w <wordlist>
 
 Normal sample run goes like this:
 
-[POC](POC/video%20poc.mp4.mp4)
+[POC](POC/poc.mp4.mp4)
 
 # Credits
 
