@@ -101,19 +101,19 @@ class PathPlunderer(object):
         pbar.update(1)
         if resp.status_code in self.codes and resp.url != url:
             if resp.status_code <= 299:
-                result = " " + url + filename + Fore.GREEN + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " (Size : " + str(len(resp.content)) + ")" + Fore.GREEN + " ---> Found " + Fore.RESET
+                result = " " + url + filename + Fore.GREEN + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " [Size : " + str(len(resp.content)) + "]" + Fore.GREEN + " ---> Found " + Fore.RESET
             elif resp.status_code <= 399:
-                result = " " + url + filename + Fore.BLUE + " (Status : " + str(resp.status_code) + ") " + resp.url + Fore.RESET + " (Size : " + str(len(resp.content)) + ")" + Fore.BLUE + " ---> Moved " + Fore.RESET
+                result = " " + url + filename + Fore.BLUE + " (Status : " + str(resp.status_code) + ") " + resp.url + Fore.RESET + " [Size : " + str(len(resp.content)) + "]" + Fore.BLUE + " ---> Moved " + Fore.RESET
             elif resp.status_code == 401:
-                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " (Size : " + str(len(resp.content)) + ")" + Fore.RED + "  ---> Unauthorized Access " + Fore.RESET
+                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " [Size : " + str(len(resp.content)) + "]" + Fore.RED + "  ---> Unauthorized Access " + Fore.RESET
             elif resp.status_code == 403:
-                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " (Size : " + str(len(resp.content)) + ")" + Fore.RED + "  ---> Forbidden Access " + Fore.RESET
+                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " [Size : " + str(len(resp.content)) + "]" + Fore.RED + "  ---> Forbidden Access " + Fore.RESET
             elif resp.status_code == 404:
-                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " (Size : " + str(len(resp.content)) + ")" + Fore.RED + "  ---> Not Found " + Fore.RESET
+                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " [Size : " + str(len(resp.content)) + "]" + Fore.RED + "  ---> Not Found " + Fore.RESET
             elif resp.status_code == 500:
-                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " (Size : " + str(len(resp.content)) + ")" + Fore.RED + "  ---> Server Error " + Fore.RESET
+                result = " " + url + filename + Fore.RED + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " [Size : " + str(len(resp.content)) + "]" + Fore.RED + "  ---> Server Error " + Fore.RESET
             else:
-                result = " " + url + filename + Fore.CYAN + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " (Size : " + str(len(resp.content)) + ")" + Fore.RESET
+                result = " " + url + filename + Fore.CYAN + " (Status : " + str(resp.status_code) + ")" + Fore.RESET + " [Size : " + str(len(resp.content)) + "]" + Fore.RESET
             self.results[resp.status_code].append(resp.url)
             tqdm.write(result)
             if self.logfile:
@@ -261,3 +261,26 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nKeyboard Interupt detected. Cancelling remaining tasks...")
         sys.exit(1)
+'''
+python PathPlunderer.py -u http://testphp.vulnweb.com -w wordlist.txt -k -x php
+Todo:
+
+
+New Features:
+1) Accepts Insecure Communication using option -k (or) --insecure
+2) Even someone give only domain name in url, it will automatically find the correct protocol for it
+3) Accepting status codes in range (200-400) and sort them
+4) Using Fores
+5) Inserted an ASCII Art in version
+6) Storing status 403 and 200 url's
+7) While being recursive stop the current path by using ctrl+c
+8) --timeout duration                HTTP Timeout (default 10s)
+9) -p, --proxy                            Proxy to use for requests [http(s)://host:port]
+10) -r, --follow-redirect                 Follow redirects
+11) Showing the response size
+12) -c, --cookies string                  Cookies to use for the requests (Example: -c 'session=123456')
+13) -H, --headers string                  Specify HTTP headers, -H 'Header1:val1,Header2:val2'
+14) -m, --method string                   Use the following HTTP method (default "GET")
+15) -d, --data  Storing                   Enter the data to be inside the body of POST, PUT, PATCH methods
+16) Using Basic Auth
+'''
