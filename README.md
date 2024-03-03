@@ -100,58 +100,6 @@ Normal sample run goes like this:
 
 ![poc.gif](poc.gif "poc.gif")
 
-```text
-(======================================================================================================================)
-
-     ____          _    _      ____   _                    _
-    |  _ \   __ _ | |_ | |__  |  _ \ | | _   _  _ __    __| |  ___  _ __   ___  _ __
-    | |_) | / _` || __|| '_ \ | |_) || || | | || '_ \  / _` | / _ \| '__| / _ \| '__|
-    |  __/ | (_| || |_ | | | ||  __/ | || |_| || | | || (_| ||  __/| |   |  __/| |
-    |_|     \__,_| \__||_| |_||_|    |_| \__,_||_| |_| \__,_| \___||_|    \___||_| v1.0
-
-                                                                 by VICTOR AZARIAH
-
-(======================================================================================================================)
- Url:               http://testphp.vulnweb.com/
- Threads:           15
- Wordlist:          wordlist.txt
- Status Codes:      200,204,301,302,307,401,403
- User Agent:        python-requests/2.31.0
- Timeout:           10
- Method:            GET
- Extensions:        php
-(======================================================================================================================)
- http://testphp.vulnweb.com/redir.php (Status : 302) http://testphp.vulnweb.com/redir.php [Size : 0] ---> Moved
- http://testphp.vulnweb.com/login.php (Status : 200) [Size : 5523] ---> Found
- http://testphp.vulnweb.com/admin (Status : 200) [Size : 262] ---> Found
- http://testphp.vulnweb.com/favicon.ico (Status : 200) [Size : 894] ---> Found
- http://testphp.vulnweb.com/pictures (Status : 200) [Size : 2669] ---> Found
- http://testphp.vulnweb.com/CVS (Status : 200) [Size : 595] ---> Found
- http://testphp.vulnweb.com/images (Status : 200) [Size : 377] ---> Found
- http://testphp.vulnweb.com/disclaimer.php (Status : 200) [Size : 5524] ---> Found
- http://testphp.vulnweb.com/secured (Status : 200) [Size : 0] ---> Found
- http://testphp.vulnweb.com/vendor (Status : 200) [Size : 268] ---> Found
- http://testphp.vulnweb.com/crossdomain.xml (Status : 200) [Size : 224] ---> Found
- http://testphp.vulnweb.com/cgi-bin (Status : 403) [Size : 276]  ---> Forbidden Access
- http://testphp.vulnweb.com/404.php (Status : 200) [Size : 5266] ---> Found
- http://testphp.vulnweb.com/search.php (Status : 200) [Size : 4732] ---> Found
- http://testphp.vulnweb.com/signup.php (Status : 200) [Size : 6033] ---> Found
- http://testphp.vulnweb.com/search.php (Status : 200) [Size : 4732] ---> Found
- http://testphp.vulnweb.com/product.php (Status : 200) [Size : 5056] ---> Found
- http://testphp.vulnweb.com/login.php (Status : 200) [Size : 5523] ---> Found
- http://testphp.vulnweb.com/logout.php (Status : 200) [Size : 4830] ---> Found
- http://testphp.vulnweb.com/cart.php (Status : 200) [Size : 4903] ---> Found
- http://testphp.vulnweb.com/categories.php (Status : 200) [Size : 6115] ---> Found
- http://testphp.vulnweb.com/userinfo.php (Status : 200) [Size : 5523] ---> Found
- http://testphp.vulnweb.com/guestbook.php (Status : 200) [Size : 5390] ---> Found
- http://testphp.vulnweb.com/index.php (Status : 200) [Size : 4958] ---> Found
- http://testphp.vulnweb.com/comment.php (Status : 200) [Size : 4958] ---> Found
- http://testphp.vulnweb.com/AJAX (Status : 200) [Size : 4236] ---> Found
-(======================================================================================================================)
- Time elapsed : 1.924804000009317
-(======================================================================================================================)
-```
-
 # Credits
 
 *Wordlist Credits: [SecLists](https://github.com/danielmiessler/SecLists/tree/master/Discovery/Web-Content)<br>You can find awesome wordlists from there!*
