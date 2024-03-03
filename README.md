@@ -1,6 +1,6 @@
 # PathPlunderer
 
-PathPlunderer is a tool used to brute-force URIs (directories and files) in websites.
+A fast, simple, recursive content discovery tool written in Python. This tool is used to brute-force URIs (directories and files) in websites.
 
 # Changes
 
