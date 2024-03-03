@@ -93,7 +93,7 @@ options:
 
 
 ```text
-python PathPlunderer.py -u <url> -w <wordlist>
+python PathPlunderer.py -u <url> -w <wordlist> -x <extentions> -k
 ```
 
 Normal sample run goes like this:
