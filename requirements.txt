@@ -1,7 +1,6 @@
 chardet==3.0.4
 cryptography>=3.3.2
 idna==2.10
-ntlm-auth==1.5.0
 pycparser==2.20
 requests==2.24.0
 six==1.15.0
