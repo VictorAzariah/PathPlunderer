@@ -98,6 +98,8 @@ python PathPlunderer.py -u <url> -w <wordlist>
 
 Normal sample run goes like this:
 
+![poc.gif](poc.gif "poc.gif")
+
 ```text
 (======================================================================================================================)
 
