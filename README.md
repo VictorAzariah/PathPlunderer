@@ -22,7 +22,7 @@ PathPlunderer is a tool used to brute-force URIs (directories and files) in webs
 
 # License
 
-See the LICENSE file.
+This project is licensed under the [Apache-2.0 license](LICENSE).
 
 # Manual
 
