@@ -230,7 +230,7 @@ if __name__ == "__main__":
     |  _ \\   __ _ | |_ | |__  |  _ \\ | | _   _  _ __    __| |  ___  _ __   ___  _ __
     | |_) | / _` || __|| '_ \\ | |_) || || | | || '_ \\  / _` | / _ \\| '__| / _ \\| '__|
     |  __/ | (_| || |_ | | | ||  __/ | || |_| || | | || (_| ||  __/| |   |  __/| |    
-    |_|     \\__,_| \\__||_| |_||_|    |_| \\__,_||_| |_| \\__,_| \\___||_|    \\___||_| """+Fore.RESET + "v1.0" + "\n\n\t\t\t\t\t\t\t\t" + " by" + Fore.RED + " VICTOR AZARIAH "+ Fore.RESET +"\n" 
+    |_|     \\__,_| \\__||_| |_||_|    |_| \\__,_||_| |_| \\__,_| \\___||_|    \\___||_| """+Fore.RESET + "v2.0" + "\n\n\t\t\t\t\t\t\t\t" + " by" + Fore.RED + " VICTOR AZARIAH "+ Fore.RESET +"\n" 
     prog = __version__.split()[0].lower()
     parser = argparse.ArgumentParser(prog=prog, description="Python Web Directory and File Brute Forcer")
     parser = argparse.ArgumentParser(description="Python Web Directory and File Brute Forcer")
@@ -261,26 +261,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nKeyboard Interupt detected. Cancelling remaining tasks...")
         sys.exit(1)
-'''
-python PathPlunderer.py -u http://testphp.vulnweb.com -w wordlist.txt -k -x php
-Todo:
-
-
-New Features:
-1) Accepts Insecure Communication using option -k (or) --insecure
-2) Even someone give only domain name in url, it will automatically find the correct protocol for it
-3) Accepting status codes in range (200-400) and sort them
-4) Using Fores
-5) Inserted an ASCII Art in version
-6) Storing status 403 and 200 url's
-7) While being recursive stop the current path by using ctrl+c
-8) --timeout duration                HTTP Timeout (default 10s)
-9) -p, --proxy                            Proxy to use for requests [http(s)://host:port]
-10) -r, --follow-redirect                 Follow redirects
-11) Showing the response size
-12) -c, --cookies string                  Cookies to use for the requests (Example: -c 'session=123456')
-13) -H, --headers string                  Specify HTTP headers, -H 'Header1:val1,Header2:val2'
-14) -m, --method string                   Use the following HTTP method (default "GET")
-15) -d, --data  Storing                   Enter the data to be inside the body of POST, PUT, PATCH methods
-16) Using Basic Auth
-'''
