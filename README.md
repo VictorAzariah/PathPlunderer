@@ -106,4 +106,4 @@ Normal sample run goes like this:
 
 P.S.: There are various sizes of wordlists inside /Wordlists, do check it out too!
 
-Have fun! (>‿◠)✌
+Have fun!✌
