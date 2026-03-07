@@ -13,9 +13,9 @@
 
 `dir` · `subdomain` · `vhost` · `fuzz` · `cloud` · `xmlrpc`
 
-[![Python](https://img.shields.io/badge/python-3.8%2B-3776AB?style=plastic&logo=python&logoColor=white)](https://python.org)
-[![Version](https://img.shields.io/badge/version-4.1-FF4B4B?style=plastic&logo=github&logoColor=white)](https://github.com/VictorAzariah/PathPlunderer/releases)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-2D3133?style=plastic&logo=linux&logoColor=white)]()
+[![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Version](https://img.shields.io/badge/Version-4.1-FF4B4B?style=for-the-badge&logo=github&logoColor=white)](https://github.com/VictorAzariah/PathPlunderer/releases)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-2D3133?style=for-the-badge&logo=linux&logoColor=white)]()
 
 *Inspired by [gobuster](https://github.com/OJ/gobuster) · [feroxbuster](https://github.com/epi052/feroxbuster) · [cloud_enum](https://github.com/initstring/cloud_enum) · [lazys3](https://github.com/nahamsec/lazys3) · [SecLists](https://github.com/danielmiessler/SecLists)*
 
