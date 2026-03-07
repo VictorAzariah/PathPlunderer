@@ -28,7 +28,7 @@
 
 ---
 
-> *"If something is truly perfect, then that's it — there is nothing left. There is no room for imagination. No place left for that person to gain additional knowledge or improvement. That's the kind of creatures we are. We take joy in trying to exceed our grasp and trying to reach for something that, in the end, we have to admit, may in fact be unreachable!"*
+> 💡 *"If something is truly perfect, then that's it — there is nothing left. There is no room for imagination. No place left for that person to gain additional knowledge or improvement. That's the kind of creatures we are. We take joy in trying to exceed our grasp and trying to reach for something that, in the end, we have to admit, may in fact be unreachable!"*
 >
 > ~ **Kurotsuchi Mayuri** *(Bleach)*
 
