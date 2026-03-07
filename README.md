@@ -1,20 +1,21 @@
 <div align="center">
 
 ```
-    ____          _    _      ____   _                    _
-   |  _ \   __ _ | |_ | |__  |  _ \ | | _   _  _ __    __| |  ___  _ __   ___  _ __
-   | |_) | / _` || __|| '_ \ | |_) || || | | || '_ \  / _` | / _ \| '__| / _ \| '__|
-   |  __/ | (_| || |_ | | | ||  __/ | || |_| || | | || (_| ||  __/| |   |  __/| |
-   |_|     \__,_| \__||_| |_||_|    |_| \__,_||_| |_| \__,_| \___||_|    \___||_|
+██████╗  █████╗ ████████╗██╗  ██╗    ██████╗ ██╗     ██╗   ██╗███╗   ██╗██████╗███████╗██████╗ ███████╗██████╗
+██╔══██╗██╔══██╗╚══██╔══╝██║  ██║    ██╔══██╗██║     ██║   ██║████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔════╝██╔══██╗
+██████╔╝███████║   ██║   ███████║    ██████╔╝██║     ██║   ██║██╔██╗ ██║██║  ██║█████╗  ██████╔╝█████╗  ██████╔╝
+██╔═══╝ ██╔══██║   ██║   ██╔══██║    ██╔═══╝ ██║     ██║   ██║██║╚████║██║  ██║██╔══╝  ██╔══██╗██╔══╝  ██╔══██╗
+██║     ██║  ██║   ██║   ██║  ██║    ██║     ███████╗╚██████╔╝██║ ╚███╝██████╔╝███████╗██║  ██║███████╗██║  ██║
+╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝    ╚═╝     ╚══════╝ ╚═════╝ ╚═╝  ╚══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
 ```
 
 **🔍 Web Recon & Attack Surface Discovery**
 
 `dir` · `subdomain` · `vhost` · `fuzz` · `cloud` · `xmlrpc`
 
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue?style=flat-square&logo=python)](https://python.org)
-[![Version](https://img.shields.io/badge/version-4.1-red?style=flat-square)](https://github.com/VictorAzariah/PathPlunderer/releases)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey?style=flat-square)]()
+[![Python](https://img.shields.io/badge/python-3.8%2B-3776AB?style=plastic&logo=python&logoColor=white)](https://python.org)
+[![Version](https://img.shields.io/badge/version-4.1-FF4B4B?style=plastic&logo=github&logoColor=white)](https://github.com/VictorAzariah/PathPlunderer/releases)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-2D3133?style=plastic&logo=linux&logoColor=white)]()
 
 *Inspired by [gobuster](https://github.com/OJ/gobuster) · [feroxbuster](https://github.com/epi052/feroxbuster) · [cloud_enum](https://github.com/initstring/cloud_enum) · [lazys3](https://github.com/nahamsec/lazys3) · [SecLists](https://github.com/danielmiessler/SecLists)*
 
@@ -288,19 +289,6 @@ All wordlists are included in the `wordlists/` folder. `wordlists/common.txt` is
 | `api-endpoints.txt` | API path fuzzing |
 | `fuzz-general.txt` | General fuzzing payloads |
 | `cloud_mutations.txt` | Cloud bucket mutations (177 entries) |
-
----
-
-## 🏷️ GitHub Topics
-
-```
-web-recon  directory-brute-force  fuzzer  403-bypass  subdomain-enumeration
-cloud-security  aws-s3  wordpress-security  xmlrpc-bruteforce
-penetration-testing  bug-bounty  ctf  python  security-tools
-```
-
-**📝 Repository description:**
-> Multi-mode web attack surface discovery — directory brute-force with smart recursion, 403 bypass, cloud bucket enum (S3/GCP/Azure), WordPress XML-RPC brute-force, subdomain and vhost enumeration.
 
 ---
 
