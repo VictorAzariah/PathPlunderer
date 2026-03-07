@@ -70,14 +70,14 @@ SMART_SKIP_DIRS: set = {
     # Font file extensions
     "woff", "woff2", "eot", "ttf", "otf",
     # Static build output (no sensitive content)
-    #"static", "assets", "asset", "dist", "build", "public",
-    #"vendor", "vendors", "lib", "libs",
+    "static", "assets", "asset", "dist", "build", "public",
+    "vendor", "vendors", "lib", "libs",
     # i18n / locale strings
     "locale", "locales", "i18n", "lang", "languages",
     # Minified bundles
-    #"min", "bundle", "bundles",
+    "min", "bundle", "bundles",
     # Generic resource dirs
-    #"res", "resources",
+    "res", "resources",
 }
 DEFAULT_BLACKLIST    = [404]
 ALL_METHODS          = ["GET", "POST", "HEAD", "PUT", "OPTIONS", "PATCH", "TRACE", "DEBUG"]
@@ -618,49 +618,87 @@ def extract_secrets(url: str, body: str) -> List[Dict]:
     return found
 
 def extract_links(base_url: str, body: str, same_origin_only: bool = True) -> List[str]:
-    """Extract navigable links from HTML/JS responses.
-    Only follows <a href>, <form action> and JS API call paths.
-    Deliberately ignores <img src>, <link href>, <script src> etc. — these are
-    static assets with no attack surface and just pollute the crawl queue.
-    """
-    links = set()
-    parsed = urlparse(base_url)
-    base = f"{parsed.scheme}://{parsed.netloc}"
+    """Extract ALL URL-like values from HTML/JS body.
 
-    def _add(href: str):
-        href = href.strip().split("?")[0].split("#")[0]
-        if not href or href.startswith(("mailto:", "tel:", "javascript:", "data:")):
+    Captures every HTML attribute that may contain a URL (href, src, action,
+    data-url, data-href, srcset, poster, etc.) PLUS JS string literals,
+    fetch/axios/require/import patterns, and CSS url() values.
+
+    Extension-based filtering is done by the caller (_crawl_url):
+      CRAWL_JUNK_EXTS       -> silently dropped  (images, fonts, CSS, media)
+      CRAWL_SENSITIVE_EXTS  -> surfaced as finding, not parsed  (pdf, zip, sql)
+      everything else       -> followed and parsed normally
+    """
+    links: set = set()
+    parsed = urlparse(base_url)
+    base   = f"{parsed.scheme}://{parsed.netloc}"
+
+    def _add(href: str) -> None:
+        if not href:
             return
-        if href.startswith("http"):
+        href = href.strip().split("?")[0].split("#")[0].strip()
+        if not href:
+            return
+        if href.startswith(("mailto:", "tel:", "javascript:", "data:", "blob:", "void")):
+            return
+        if href.startswith("//"):
+            links.add(f"{parsed.scheme}:{href}")
+        elif href.startswith("http://") or href.startswith("https://"):
             if not same_origin_only or href.startswith(base):
                 links.add(href)
-        elif href.startswith("//"):
-            links.add(f"{parsed.scheme}:{href}")
         elif href.startswith("/"):
             links.add(base + href)
-        elif href and not href.startswith((".", "#")):
-            links.add(base + "/" + href)
+        elif href and not href.startswith(("#", " ", "{")):
+            # relative path -- only add if it looks like a real path segment
+            if re.match(r'^[a-zA-Z0-9_\-][a-zA-Z0-9_\-./]{1,150}$', href):
+                links.add(base + "/" + href)
 
-    # Only <a href> and <area href> — navigation links, not assets
-    for m in re.finditer(r'<a\b[^>]*\bhref\s*=\s*["\']([^"\'<>]+)["\']', body, re.IGNORECASE):
-        _add(m.group(1))
-    for m in re.finditer(r'<area\b[^>]*\bhref\s*=\s*["\']([^"\'<>]+)["\']', body, re.IGNORECASE):
-        _add(m.group(1))
-    # <form action> — form submission targets
-    for m in re.finditer(r'<form\b[^>]*\baction\s*=\s*["\']([^"\'<>]+)["\']', body, re.IGNORECASE):
-        _add(m.group(1))
-    # JS fetch / axios / url patterns — API endpoints
+    # ── HTML attribute URLs ────────────────────────────────────────────────
+    # Covers: href, src, action, data-*, srcset (first entry), poster, ping
     for m in re.finditer(
-        r'(?:fetch|axios\.(?:get|post|put|delete|patch)|url\s*[:=])\s*["\']([^"\'<>?#]{4,200})["\']',
+        r'\b(?:href|src|action|data-url|data-href|data-src|data-action|data-link|'
+        r'poster|ping|formaction)\s*=\s*["\']([^"\'<>\s]{2,400})["\']',
+        body, re.IGNORECASE
+    ):
+        _add(m.group(1))
+
+    # srcset="img.png 1x, img2.png 2x" -- grab each entry
+    for m in re.finditer(r'\bsrcset\s*=\s*["\']([^"\'<>]+)["\']', body, re.IGNORECASE):
+        for entry in m.group(1).split(","):
+            _add(entry.strip().split(" ")[0])
+
+    # <meta http-equiv="refresh" content="0; url=...">
+    for m in re.finditer(r'\burl\s*=\s*["\']?([^"\'<>\s;,]{4,300})', body, re.IGNORECASE):
+        _add(m.group(1))
+
+    # ── JS patterns ───────────────────────────────────────────────────────
+    # fetch(), axios.get/post/..(), $.get/post(), XMLHttpRequest.open()
+    for m in re.finditer(
+        r'(?:fetch|axios\.(?:get|post|put|delete|patch|head)|'
+        r'\$\.(?:get|post|ajax)|open)\s*\(\s*["\']([^"\'<>\s?#]{4,300})["\']',
         body
     ):
         _add(m.group(1))
-    # Absolute paths in JS strings (e.g. "/api/v1/users")
-    for m in re.finditer(r'["\'](/(?:api|v\d+|admin|dashboard|app|auth|user|account|config)[a-zA-Z0-9_\-/\.]{0,100})["\']', body):
+
+    # url: '/path', url = '/path', path: '/path', endpoint: '/path'
+    for m in re.finditer(
+        r'(?:url|path|endpoint|href|src|action|route)\s*[:=]\s*["\']([^"\'<>\s?#]{4,300})["\']',
+        body
+    ):
+        _add(m.group(1))
+
+    # require('/path') / import ... from '/path'
+    for m in re.finditer(
+        r'(?:require\s*\(\s*|from\s+)["\']([^"\'<>\s?#]{4,300})["\']',
+        body
+    ):
+        _add(m.group(1))
+
+    # Any JS/JSON string literal that IS an absolute path starting with /
+    for m in re.finditer(r'["\'](/[a-zA-Z0-9_\-./]{3,200})["\']', body):
         _add(m.group(1))
 
     return list(links)
-
 def pretty_banner(no_color: bool = False) -> str:
     """Slick cyberpunk-style banner with gradient accent bar."""
     import shutil as _sh
@@ -978,6 +1016,7 @@ class PathPlunderer:
         self.discovered_exts: set             = set()
         self.discovered_words: set            = set()
         self.all_secrets:    List[Dict]       = []
+        self.dir_listing_dirs: Set[str]       = set()   # confirmed open listings → crawl-only
         self.wildcard_hash:  Optional[str]    = None
         self.wildcard_body:  Optional[bytes]  = None
         self.filter_similar_body: Optional[bytes] = None
@@ -1163,13 +1202,15 @@ class PathPlunderer:
           CRAWL_SENSITIVE_EXTS (.pdf/.zip/.sql/.bak etc.)  -- HEAD-check, print, no parse
           Everything else                                  -- GET, print, parse for more links
         """
-        tqdm.write(Fore.CYAN + f"\n  [CRAWL] Crawling: {base_url}" + Fore.RESET)
-
         # Seed: base_url itself + all successful pages from THIS dir's dirbust
+        # Dir-listing pages are always included so their directory entries are harvested
         seed_urls: Set[str] = {base_url}
         for res in dirbust_results:
             if res.status < 400:
                 seed_urls.add(res.url)
+            # Dir-listing without trailing slash: also seed the slash variant
+            if "DIR-LISTING" in res.note:
+                seed_urls.add(res.url.rstrip("/") + "/")
 
         # Paths already known globally (across all dirs scanned so far)
         already_found: Set[str] = {
@@ -1190,6 +1231,17 @@ class PathPlunderer:
                 for lnk in follow:
                     if lnk not in all_follow:
                         all_follow.add(lnk); next_batch.add(lnk)
+                        # -g / --links: harvest path segments from crawled URLs
+                        if self.collect_words or self.do_extract_links:
+                            lpath = urlparse(lnk).path.strip("/")
+                            for seg in lpath.split("/"):
+                                seg = seg.strip()
+                                if seg and len(seg) >= 2:
+                                    with self._lock:
+                                        self.discovered_words.add(seg)
+                                        base_seg = seg.rsplit(".", 1)[0] if "." in seg else seg
+                                        if len(base_seg) >= 2:
+                                            self.discovered_words.add(base_seg)
                 all_sensitive.update(sensitive)
             to_crawl = next_batch - self._crawled_urls
             depth += 1
@@ -1231,6 +1283,11 @@ class PathPlunderer:
             if urlparse(lnk).path.rstrip("/").lower() not in already_found
         ]
 
+        def _dir_listing_check(body: str) -> bool:
+            bl = body[:4096].lower()
+            return ("index of /" in bl or "<title>index of" in bl
+                    or "directory listing for" in bl or "parent directory</a>" in bl)
+
         for u in new_urls:
             if self._stop.is_set(): break
             norm_u = u.rstrip("/").lower()
@@ -1248,6 +1305,13 @@ class PathPlunderer:
             words_ = len(bt.split())     if bt.strip() else 0
             redir  = resp.headers.get("Location", "") if resp.status_code in (301, 302, 307, 308) else ""
 
+            # ── Dir listing detection in crawl results ───────────────────────
+            is_dir_listing = (resp.status_code == 200 and _dir_listing_check(bt))
+            note = "CRAWL | DIR-LISTING" if is_dir_listing else "CRAWL"
+            if is_dir_listing:
+                with self._print_lock:
+                    tqdm.write(Fore.YELLOW + f"  [DIR-LIST] Open directory listing: {resp.url}" + Fore.RESET)
+
             # Detect new directory for recursion queue
             dir_url = None
             if resp.url.endswith("/"):
@@ -1258,10 +1322,13 @@ class PathPlunderer:
                     dir_url = loc if loc.startswith("http") else urljoin(resp.url.rstrip("/") + "/", loc.lstrip("/"))
             if dir_url and dir_url not in (self.base_url, base_url):
                 new_dirs.add(dir_url)
+            # Dir listing URLs should always be recursed into
+            if is_dir_listing and resp.url not in (self.base_url, base_url):
+                new_dirs.add(resp.url if resp.url.endswith("/") else resp.url + "/")
 
             result = ScanResult(url=resp.url, status=resp.status_code, size=size,
                                 lines=lines_, words=words_, redirect=redir,
-                                method="GET", note="CRAWL")
+                                method="GET", note=note)
             with self._lock:
                 self.results.append(result)
                 already_found.add(urlparse(resp.url).path.rstrip("/").lower())
@@ -1269,9 +1336,6 @@ class PathPlunderer:
                 tqdm.write(self._format_result(result))
                 if self.logfile: self._log(self._format_result(result))
             found_crawl += 1
-
-        if found_crawl == 0:
-            tqdm.write(Fore.YELLOW + "  [CRAWL] No new paths discovered." + Fore.RESET)
 
         return new_dirs
 
@@ -1357,16 +1421,66 @@ class PathPlunderer:
         _bt    = resp.text
         _lines = _bt.count("\n") + 1 if _bt.strip() else 0
         _words = len(_bt.split())     if _bt.strip() else 0
-        result = ScanResult(url=resp.url, status=resp.status_code, size=size,
-                            lines=_lines, words=_words,
-                            redirect=redirect, method=self.methods)
-        # Directory listing detection
-        if resp.status_code == 200 and resp.url.endswith("/"):
-            body_lower = _bt[:2048].lower()
-            if "index of /" in body_lower or "<title>index of" in body_lower:
-                result.note = result.note + (" | " if result.note else "") + "DIR-LISTING"
-                with self._print_lock:
-                    tqdm.write(Fore.YELLOW + f"  [DIR-LIST] Open directory listing: {resp.url}" + Fore.RESET)
+        # ── Directory listing detection (on 200 responses, no trailing slash required) ──
+        def _check_dir_listing(body: str) -> bool:
+            bl = body[:4096].lower()
+            return ("index of /" in bl or "<title>index of" in bl
+                    or "directory listing for" in bl or "parent directory</a>" in bl)
+
+        # ── Directory listing detection ──────────────────────────────────────
+        is_dir_listing = (resp.status_code == 200 and _check_dir_listing(_bt))
+        if is_dir_listing:
+            result = ScanResult(url=resp.url, status=resp.status_code, size=size,
+                                lines=_lines, words=_words,
+                                redirect=redirect, method=self.methods,
+                                note="DIR-LISTING")
+            with self._print_lock:
+                tqdm.write(Fore.YELLOW + f"  [DIR-LIST] Open directory listing: {resp.url}" + Fore.RESET)
+        else:
+            result = ScanResult(url=resp.url, status=resp.status_code, size=size,
+                                lines=_lines, words=_words,
+                                redirect=redirect, method=self.methods)
+
+        # ── Compute dir_url once (used for recursion + redirect dir-listing check) ──
+        dir_url: Optional[str] = None
+        if not self.no_recursion and resp.status_code < 404:
+            if resp.url.endswith("/"):
+                dir_url = resp.url
+            elif resp.status_code in (301, 302, 307, 308):
+                loc = resp.headers.get("Location", "")
+                if loc.endswith("/"):
+                    dir_url = loc if loc.startswith("http") else urljoin(
+                        resp.url.rstrip("/") + "/", loc.lstrip("/"))
+            # Dir listing at a URL without trailing slash: force recursion into it
+            if dir_url is None and is_dir_listing:
+                dir_url = resp.url.rstrip("/") + "/"
+
+        # ── If it's a redirect to a dir, follow once to check for dir listing ──
+        redirect_is_dir_listing = False
+        if (dir_url and dir_url not in (self.base_url, base)
+                and resp.status_code in (301, 302, 307, 308)):
+            follow_resp = self._request(session, "GET", dir_url)
+            if follow_resp and follow_resp.status_code == 200:
+                if _check_dir_listing(follow_resp.text):
+                    redirect_is_dir_listing = True
+                    fr_size  = len(follow_resp.content)
+                    fr_bt    = follow_resp.text
+                    fr_lines = fr_bt.count("\n") + 1 if fr_bt.strip() else 0
+                    fr_words = len(fr_bt.split()) if fr_bt.strip() else 0
+                    dir_result = ScanResult(
+                        url=follow_resp.url, status=200, size=fr_size,
+                        lines=fr_lines, words=fr_words,
+                        method="GET", note="DIR-LISTING")
+                    with self._print_lock:
+                        tqdm.write(Fore.YELLOW + f"  [DIR-LIST] Open directory listing: {follow_resp.url}" + Fore.RESET)
+                        if self.logfile: self._log(f"  [DIR-LIST] Open directory listing: {follow_resp.url}")
+                    with self._lock:
+                        self.results.append(dir_result)
+                        # Register so scan loop skips dirbust for this dir
+                        listing_url = follow_resp.url if follow_resp.url.endswith("/") else follow_resp.url + "/"
+                        self.dir_listing_dirs.add(listing_url)
+                        if self.do_extract_secrets:
+                            self._pending_secret_urls.append((follow_resp.url, fr_bt))
 
         with self._lock:
             self.results.append(result)
@@ -1374,57 +1488,73 @@ class PathPlunderer:
                 self._pending_secret_urls.append((resp.url, resp.text))
             if self.bypass_403 and resp.status_code == 403:
                 self._pending_bypass.append((base, filename))
-            # ── Directory recursion detection ───────────────────────────────
-            # Must handle two cases:
-            #  1. Direct 200 on path ending with / (dir/ already in wordlist or add_slash)
-            #  2. 301/302/307/308 redirect from /admin → /admin/  (follow_redirect=False default)
-            #     In this case resp.url is the ORIGINAL url (no redirect followed), so we
-            #     must read the Location header to detect the trailing slash.
-            if not self.no_recursion and resp.status_code < 404:
-                dir_url = None
-                if resp.url.endswith("/"):
-                    dir_url = resp.url
-                elif resp.status_code in (301, 302, 307, 308):
-                    loc = resp.headers.get("Location", "")
-                    if loc.endswith("/"):
-                        if loc.startswith("http"):
-                            dir_url = loc
-                        else:
-                            dir_url = loc if loc.startswith("http") else urljoin(resp.url.rstrip("/") + "/", loc.lstrip("/"))
-                if dir_url and dir_url not in (self.base_url, base):
-                    if dir_url not in self.found_paths:
-                        self.found_paths.append(dir_url)
-            if self.collect_exts and "." in filename:
-                self.discovered_exts.add("." + filename.rsplit(".",1)[-1])
-            # -g / --collect-words: extract path segments from response HTML
-            if self.collect_words and resp.status_code < 400:
+            # ── Register direct dir-listing hits ────────────────────────────
+            if is_dir_listing:
+                self.dir_listing_dirs.add(resp.url if resp.url.endswith("/") else resp.url + "/")
+            # ── Queue dir for recursion ──────────────────────────────────────
+            if dir_url and dir_url not in (self.base_url, base):
+                if dir_url not in self.found_paths:
+                    self.found_paths.append(dir_url)
+            # ── -E: collect extensions from found file AND from discovered links ──
+            if self.collect_exts:
+                # Extension from the wordlist hit itself
+                if "." in filename:
+                    self.discovered_exts.add("." + filename.rsplit(".", 1)[-1])
+                # Extensions from all URLs found in the response body
+                if resp.status_code < 400 and _bt:
+                    try:
+                        for lnk in extract_links(resp.url, _bt, same_origin_only=True):
+                            lp = urlparse(lnk).path
+                            lf = lp.rsplit("/", 1)[-1]
+                            if "." in lf:
+                                ext = "." + lf.rsplit(".", 1)[-1].lower()
+                                if len(ext) <= 6 and ext.isalpha() or ext in ('.php', '.asp', '.aspx', '.jsp', '.do', '.action', '.cfm', '.cgi', '.pl', '.py', '.rb', '.env', '.json', '.xml', '.yaml', '.yml', '.conf', '.config', '.ini', '.log', '.bak', '.sql', '.gz', '.zip'):
+                                    self.discovered_exts.add(ext)
+                    except Exception:
+                        pass
+            # ── -g / --links: extract ALL path segments from response HTML/JS ──
+            if (self.collect_words or self.do_extract_links) and resp.status_code < 400:
                 try:
-                    links = extract_links(resp.url, _bt, same_origin_only=True)
-                    for lnk in links:
-                        from urllib.parse import urlparse as _up
-                        seg = _up(lnk).path.strip("/").split("/")[-1]
-                        if seg and "." not in seg and len(seg) > 2:
+                    for lnk in extract_links(resp.url, _bt, same_origin_only=True):
+                        lpath = urlparse(lnk).path.strip("/")
+                        # Collect every path segment (not just the last one)
+                        for seg in lpath.split("/"):
+                            seg = seg.strip()
+                            if not seg or len(seg) < 2:
+                                continue
+                            # Full segment (e.g. "reset_password", "user-profile.php")
                             self.discovered_words.add(seg)
+                            # Base name without extension
+                            base_seg = seg.rsplit(".", 1)[0] if "." in seg else seg
+                            if base_seg and len(base_seg) >= 2:
+                                self.discovered_words.add(base_seg)
                 except Exception:
                     pass
 
-        line = self._format_result(result)
-        with self._print_lock:
-            tqdm.write(line)
-            if self.logfile: self._log(line)
+        # ── Print: dir-listing → banner only; redirect-to-listing → suppress 301 line; normal → metrics ──
+        if is_dir_listing or redirect_is_dir_listing:
+            pass  # [DIR-LIST] banner already printed above; no metrics line wanted
+        else:
+            line = self._format_result(result)
+            with self._print_lock:
+                tqdm.write(line)
+                if self.logfile: self._log(line)
 
-        if self.collect_backups and resp.status_code < 400:
+        # ── --db: check backup variants on found files (and redirect targets) ──
+        if self.collect_backups and resp.status_code < 500:
             for bext in BACKUP_EXTS:
                 if self._stop.is_set(): break
                 bresp = self._request(session, "GET", target + bext)
-                if bresp and bresp.status_code < 400 and not self._should_filter(bresp):
-                    br = ScanResult(url=bresp.url, status=bresp.status_code,
-                                    size=len(bresp.content), note="BACKUP")
-                    _brl = self._format_result(br)
-                    with self._print_lock:
-                        tqdm.write(_brl)
-                        if self.logfile: self._log(_brl)
-                    with self._lock: self.results.append(br)
+                if bresp is None: continue
+                # Accept 200, 201, 204, 301, 302 — anything that looks real
+                if bresp.status_code >= 400 or self._should_filter(bresp): continue
+                br = ScanResult(url=bresp.url, status=bresp.status_code,
+                                size=len(bresp.content), note="BACKUP")
+                brl = self._format_result(br)
+                with self._print_lock:
+                    tqdm.write(brl)
+                    if self.logfile: self._log(brl)
+                with self._lock: self.results.append(br)
 
     # ──────────────────────────────────────────────────────────────────────
     #  403 BYPASS RUNNER
@@ -1733,53 +1863,84 @@ class PathPlunderer:
         "/phpMyAdmin","/phpmyadmin","/pma","/adminer.php",
     ]
 
-    def _probe_base_url(self, session: requests.Session):
-        tqdm.write(Fore.CYAN + "\n  [PROBE] Checking known sensitive paths..." + Fore.RESET)
+    def _probe_all_dirs(self, session: requests.Session, dirs: List[str]):
+        """Probe every scanned directory (excluding confirmed dir-listing dirs) for
+        well-known sensitive paths.  Runs as one consolidated section so output
+        stays clean: single header → all findings → single summary.
+        """
+        if not dirs:
+            return
+
+        # Snapshot paths already found so we never duplicate a dirbust/crawl hit
+        already_known: set = {
+            urlparse(r.url).path.rstrip("/").lower()
+            for r in self.results
+        }
+
+        # Build probe URL list: KNOWN_PATHS appended to every target dir.
+        # For the root URL, also harvest asset paths from the page body.
         probe_urls: set = set()
+        parsed_base = urlparse(self.url)
+        origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+
         base_resp = self._request(session, "GET", self.url)
         if base_resp and base_resp.status_code < 400:
             body = base_resp.text
-            parsed_base = urlparse(self.url)
-            origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
             for m in re.finditer(
                 r'(?:src|href|action|data-src|import|require|from)\s*[=\(\'\"]\s*[\'"]?([^\s\'"<>{}\[\]()]+)',
                 body, re.IGNORECASE
             ):
                 path = m.group(1).strip().split("?")[0].split("#")[0]
-                if not path or path.startswith(("//","mailto:")): continue
+                if not path or path.startswith(("//", "mailto:")): continue
                 if path.startswith("http"):
                     if path.startswith(origin): probe_urls.add(path)
                 elif path.startswith("/"): probe_urls.add(origin + path)
                 else: probe_urls.add(self.url.rstrip("/") + "/" + path)
             probe_urls = {u for u in probe_urls
                           if any(urlparse(u).path.lower().endswith(ext) for ext in self.PROBE_EXTS)}
-        origin2 = self.url.rstrip("/")
-        for kp in self.KNOWN_PATHS: probe_urls.add(origin2 + kp)
-        tqdm.write(Fore.CYAN + f"  [PROBE] Checking {len(probe_urls)} paths..." + Fore.RESET)
+
+        for target_dir in dirs:
+            root = target_dir.rstrip("/")
+            for kp in self.KNOWN_PATHS:
+                probe_urls.add(root + kp)
+
+        tqdm.write(Fore.CYAN + f"\n  [PROBE] Checking {len(probe_urls)} paths across {len(dirs)} director{'y' if len(dirs)==1 else 'ies'}..." + Fore.RESET)
         found = 0
-        with ThreadPoolExecutor(max_workers=self.threads) as executor:
-            future_map = {executor.submit(self._request, session, "GET", u): u for u in probe_urls}
-            for future in as_completed(future_map):
-                if self._stop.is_set(): break
-                url = future_map[future]
-                try: resp = future.result()
-                except Exception: continue
-                if resp is None: continue
-                sc = resp.status_code
-                if sc in (404, 400, 410): continue
-                size = len(resp.content)
-                result = ScanResult(url=url, status=sc, size=size, note="PROBE")
-                with self._lock: self.results.append(result)
+
+        def _probe_one(url: str):
+            nonlocal found
+            if self._stop.is_set(): return
+            resp = self._request(session, "GET", url)
+            if resp is None: return
+            sc = resp.status_code
+            if sc in (404, 400, 410): return
+            if urlparse(url).path.rstrip("/").lower() in already_known: return
+            body = resp.text
+            size  = len(resp.content)
+            lines = body.count("\n") + 1 if body.strip() else 0
+            words = len(body.split())     if body.strip() else 0
+            result = ScanResult(url=url, status=sc, size=size, lines=lines, words=words, note="PROBE")
+            with self._lock:
+                self.results.append(result)
+                found += 1
+            with self._print_lock:
                 tqdm.write(self._format_result(result))
                 if self.logfile: self._log(self._format_result(result))
-                if self.do_extract_secrets and sc < 400:
-                    secrets = extract_secrets(url, resp.text)
-                    if secrets:
-                        with self._lock: self.all_secrets.extend(secrets)
-                        for s in secrets:
-                            tqdm.write(Fore.RED + f"    [{s['type']}] {s['value'][:120]}" + Fore.RESET)
-                found += 1
-        tqdm.write(Fore.CYAN + f"  [PROBE] Done — {found} interesting files found." + Fore.RESET)
+            if self.do_extract_secrets and sc < 400:
+                secrets = extract_secrets(url, resp.text)
+                if secrets:
+                    with self._lock: self.all_secrets.extend(secrets)
+                    for s in secrets:
+                        tqdm.write(Fore.RED + f"    [{s['type']}] {s['value'][:120]}" + Fore.RESET)
+
+        with ThreadPoolExecutor(max_workers=self.threads) as executor:
+            futs = [executor.submit(_probe_one, u) for u in probe_urls]
+            for f in as_completed(futs):
+                if self._stop.is_set(): break
+                try: f.result()
+                except Exception: pass
+
+        tqdm.write(Fore.CYAN + f"  [PROBE] Done — {found} finding(s) across {len(dirs)} director{'y' if len(dirs)==1 else 'ies'}." + Fore.RESET)
 
     # ──────────────────────────────────────────────────────────────────────
     #  PRECHECKS + CALIBRATION
@@ -1847,29 +2008,58 @@ class PathPlunderer:
     # ──────────────────────────────────────────────────────────────────────
     #  SCAN DIRECTORY
     # ──────────────────────────────────────────────────────────────────────
-    def _scan_dir(self, base_url: str):
+    def _scan_dir(self, base_url: str, extra_words: List[str] = None,
+                  extra_exts: List[str] = None):
+        """Brute-force base_url with wordlist × extensions.
+
+        extra_words / extra_exts are used for second-pass sweeps (-g / -E):
+        they are tried in addition to the main wordlist/exts but only combinations
+        not already requested (tracked via _requested_targets).
+        """
         thread_local = threading.local()
         def get_session():
             if not hasattr(thread_local, "session"):
                 thread_local.session = self._make_session()
             return thread_local.session
 
-        wordlist = self.wordlist[:]
-        if self.collect_words and self.discovered_words:
-            wordlist.extend(self.discovered_words)
+        if extra_words is not None or extra_exts is not None:
+            # Second-pass sweep: only the new words × current exts  +
+            #                    current wordlist × new exts
+            wordlist = list(extra_words) if extra_words else []
+            exts_to_use = self.exts
+            combos: List[str] = []
+            if extra_words:
+                combos += [
+                    (w.strip().rstrip("/") if e == "" else w.strip().rstrip("/") + e)
+                    for w in extra_words for e in self.exts if w.strip()
+                ]
+            if extra_exts:
+                combos += [
+                    (w.strip().rstrip("/") + e)
+                    for w in self.wordlist for e in extra_exts if w.strip()
+                ]
+        else:
+            # First pass: full wordlist × extensions
+            wordlist = self.wordlist[:]
+            combos = [
+                (w.strip().rstrip("/") if e == "" else w.strip().rstrip("/") + e)
+                for w in wordlist for e in self.exts if w.strip()
+            ]
 
-        combos = [
-            (w.strip().rstrip("/") if e == '' else w.strip().rstrip("/") + e)
-            for w in wordlist for e in self.exts if w.strip()
-        ]
+        if not combos:
+            return
+
         total = len(combos)
         pbar = None
         if not self.no_progress:
-            pbar = tqdm(total=total, desc=f"  {base_url.rstrip('/').split('/')[-1] or '/'}", leave=False)
+            label = base_url.rstrip("/").rsplit("/", 1)[-1] or "/"
+            suffix = " [+words]" if extra_words else " [+exts]" if extra_exts else ""
+            pbar = tqdm(total=total, desc=f"  {label}{suffix}", leave=False)
         executor = None
         try:
             executor = ThreadPoolExecutor(max_workers=self._current_threads)
-            futures = [executor.submit(self._brute, get_session, base_url, combo, pbar) for combo in combos]
+            futures = [executor.submit(self._brute, get_session, base_url, combo, pbar)
+                       for combo in combos]
             for future in as_completed(futures):
                 if self._stop.is_set(): [f.cancel() for f in futures]; break
                 try: future.result()
@@ -1995,19 +2185,22 @@ class PathPlunderer:
 
         # ── SCAN LOOP ──────────────────────────────────────────────────────
         # Per directory the order is always:
-        #   1. Dirbust  — wordlist × extensions against this dir
-        #   2. Crawl    — parse pages found by dirbust, surface missed endpoints
-        #   3. Collect  — new dirs from BOTH dirbust AND crawl → queue for next depth
+        #   1. Dirbust       — wordlist × extensions against this dir
+        #   1b. Second pass  — new words (-g/--links) and/or new exts (-E) found during pass 1
+        #   2. Crawl         — parse pages found by dirbust, surface missed endpoints
+        #   3. Collect       — new dirs from BOTH dirbust AND crawl → queue for next depth
         # ──────────────────────────────────────────────────────────────────
         scanned: Set[str] = set()
         queue: List[str]  = [self.url]
         cur_depth = 0
+        crawl_banner_printed = False
 
         def _should_recurse_into(dir_url: str) -> bool:
-            """Return True if this directory should be queued for recursion."""
+            """Return True if this directory should be queued for recursion.
+            Dir-listing dirs bypass SMART_SKIP_DIRS — they are crawl-only."""
             if dir_url in scanned: return False
-            if not self.no_recursion: pass  # no_recursion = False means recurse
-            else: return False
+            if self.no_recursion: return False
+            if dir_url in self.dir_listing_dirs: return True   # always recurse, crawl-only
             if self.smart_recurse:
                 seg = dir_url.rstrip("/").rsplit("/", 1)[-1].lower()
                 if seg in SMART_SKIP_DIRS: return False
@@ -2023,18 +2216,54 @@ class PathPlunderer:
                     if base in scanned: continue
                     scanned.add(base)
 
+                    # ── Dir-listing shortcut: skip wordlist dirbust entirely ─
+                    # The server already exposes every file via the listing page.
+                    # Just crawl it to harvest links and queue any sub-directories.
+                    if base in self.dir_listing_dirs:
+                        if self.crawl and not self._stop.is_set():
+                            for p in sorted(self._crawl_for_dir(session, base, [])):
+                                if _should_recurse_into(p) and p not in queue:
+                                    queue.append(p)
+                        continue
+
                     # ── Step 1: Dirbust this directory ─────────────────────
                     tqdm.write(Fore.CYAN + f"\n  [DIR] Scanning: {base}" + Fore.RESET)
                     results_before = len(self.results)
                     fp_before      = len(self.found_paths)
+                    words_before   = set(self.discovered_words)
+                    exts_before    = set(self.discovered_exts)
+
                     self._scan_dir(base)
 
-                    # Dirs discovered by dirbust (via 301→dir/ or direct 200 dir/)
+                    # ── Step 1b: Second passes for -g/--links and -E ────────
+                    # Run BEFORE crawl so crawl can also see expanded results
+
+                    # -g / --links: try words discovered during this dir's scan
+                    if (self.collect_words or self.do_extract_links) and not self._stop.is_set():
+                        new_words = self.discovered_words - words_before
+                        if new_words:
+                            tqdm.write(Fore.CYAN + f"  [-g] {len(new_words)} new word(s) discovered — rescanning {base}" + Fore.RESET)
+                            self._scan_dir(base, extra_words=list(new_words))
+
+                    # -E: try extensions collected during this dir's scan
+                    if self.collect_exts and not self._stop.is_set():
+                        # Convert discovered extension strings → extension list, deduplicate vs current
+                        new_exts = [e for e in (self.discovered_exts - exts_before)
+                                    if e not in self.exts]
+                        if new_exts:
+                            self.exts.extend(new_exts)  # keep for future scans too
+                            tqdm.write(Fore.CYAN + f"  [-E] {len(new_exts)} new extension(s) found: {' '.join(new_exts)} — rescanning {base}" + Fore.RESET)
+                            self._scan_dir(base, extra_exts=new_exts)
+
+                    # Dirs discovered by dirbust + second passes
                     dirbust_dirs = [p for p in self.found_paths[fp_before:]]
 
                     # ── Step 2: Crawl using THIS dir's dirbust results ──────
                     crawl_dirs: Set[str] = set()
                     if self.crawl and not self._stop.is_set():
+                        if not crawl_banner_printed:
+                            tqdm.write(Fore.CYAN + "\n  [CRAWL] Crawling discovered paths..." + Fore.RESET)
+                            crawl_banner_printed = True
                         dir_results = self.results[results_before:]
                         crawl_dirs  = self._crawl_for_dir(session, base, dir_results)
 
@@ -2051,9 +2280,10 @@ class PathPlunderer:
                 import traceback; traceback.print_exc()
                 tqdm.write(Fore.RED + f"  [SCAN ERR] {e}" + Fore.RESET)
 
-        # PHASE 2 — Smart probe
+        # PHASE 2 — Probe: all scanned dirs except open dir-listings (already exposed)
         if self.probe and not self._stop.is_set():
-            self._probe_base_url(session)
+            probe_targets = sorted(d for d in scanned if d not in self.dir_listing_dirs)
+            self._probe_all_dirs(session, probe_targets)
 
         # PHASE 3 — 403 Bypass
         if self.bypass_403 and not self._stop.is_set():
@@ -4110,7 +4340,7 @@ def main():
                 hide_length=getattr(args,"hide_length",False),
                 output_json=getattr(args,"output_json",False),
                 verbose=getattr(args,"verbose",0),
-                no_recursion=getattr(args,"full_recurse",False),    # full_recurse = not no_recursion
+                no_recursion=getattr(args,"no_recurse",False),      # --no-recurse disables all recursion
                 smart_recurse=(not getattr(args,"no_recurse",False) and not getattr(args,"full_recurse",False)),
                 depth=getattr(args,"depth",DEFAULT_DEPTH),
                 filter_size=getattr(args,"filter_size",None),
