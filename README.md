@@ -1,218 +1,365 @@
+<div align="center">
+
 ```
-██████╗  █████╗ ████████╗██╗  ██╗    ██████╗ ██╗     ██╗   ██╗███╗   ██╗██████╗███████╗██████╗ ███████╗██████╗
-██╔══██╗██╔══██╗╚══██╔══╝██║  ██║    ██╔══██╗██║     ██║   ██║████╗  ██║██╔══██╗██╔════╝██╔══██╗██╔════╝██╔══██╗
-██████╔╝███████║   ██║   ███████║    ██████╔╝██║     ██║   ██║██╔██╗ ██║██║  ██║█████╗  ██████╔╝█████╗  ██████╔╝
-██╔═══╝ ██╔══██║   ██║   ██╔══██║    ██╔═══╝ ██║     ██║   ██║██║╚████║██║  ██║██╔══╝  ██╔══██╗██╔══╝  ██╔══██╗
-██║     ██║  ██║   ██║   ██║  ██║    ██║     ███████╗╚██████╔╝██║ ╚███╝██████╔╝███████╗██║  ██║███████╗██║  ██║
-╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝    ╚═╝     ╚══════╝ ╚═════╝ ╚═╝  ╚══╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
+        ____        __  __    ____  __               __                     
+       / __ \____ _/ /_/ /_  / __ \/ /_  ______  ___/ /___  ________  _____ 
+      / /_/ / __ `/ __/ __ \/ /_/ / / / / / __ \/ __  / _ \/ ___/ _ \/ ___/ 
+     / ____/ /_/ / /_/ / / / ____/ / /_/ / / / / /_/ /  __/ /  /  __/ /     
+    /_/    \__,_/\__/_/ /_/_/   /_/\__,_/_/ /_/\__,_/\___/_/   \___/_/      
 ```
 
-<p align="center">
-  <b>Fast, recursive web directory & file brute-forcer for penetration testers and bug bounty hunters</b>
-</p>
+**Web Recon & Attack Surface Discovery**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python">
-  <img src="https://img.shields.io/badge/Platform-Kali%20Linux-purple?style=flat-square&logo=linux">
-  <img src="https://img.shields.io/badge/License-Apache%202.0-green?style=flat-square">
-  <img src="https://img.shields.io/badge/Version-2.0-orange?style=flat-square">
-  <img src="https://img.shields.io/badge/Maintained-Yes-brightgreen?style=flat-square">
-</p>
+`dir` · `subdomain` · `vhost` · `fuzz` · `cloud` · `xmlrpc`
 
----
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue?style=flat-square&logo=python)](https://python.org)
+[![Version](https://img.shields.io/badge/version-4.1-red?style=flat-square)](https://github.com/VictorAzariah/PathPlunderer/releases)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey?style=flat-square)]()
 
-## 🔍 What is PathPlunderer?
+*Inspired by [gobuster](https://github.com/OJ/gobuster) · [feroxbuster](https://github.com/epi052/feroxbuster) · [cloud_enum](https://github.com/initstring/cloud_enum) · [lazys3](https://github.com/nahamsec/lazys3) · [SecLists](https://github.com/danielmiessler/SecLists)*
 
-**PathPlunderer** is a fast, multi-threaded Python tool for brute-forcing web directories and files. Built for penetration testers and bug bounty hunters, it combines speed and flexibility — supporting recursive scanning, custom headers, proxy routing, Basic Auth, file extension fuzzing, and more.
-
-Think of it as a lightweight, customizable alternative to tools like `dirb` or `gobuster` — written entirely in Python.
+</div>
 
 ---
 
-## ✨ Features
-
-- **Recursive scanning** — automatically dives into discovered directories
-- **Multi-threaded** — configurable thread count for fast enumeration
-- **Extension fuzzing** — append file extensions like `.php`, `.txt`, `.bak` to every wordlist entry
-- **Auto-protocol detection** — input just a domain; PathPlunderer finds the right protocol
-- **HTTP method support** — GET, POST, HEAD, PUT, OPTIONS, PATCH
-- **Proxy support** — route traffic through Burp Suite or any HTTP(S) proxy
-- **Custom headers & cookies** — inject session tokens, auth headers, and more
-- **Basic Auth** — authenticate with username and password
-- **Wildcard detection** — force wildcard processing to avoid false positives
-- **Custom/random User-Agent** — evade basic WAF fingerprinting
-- **Follow redirects** — optionally chase 3xx responses
-- **Insecure mode** — bypass SSL/TLS certificate validation
-- **Output logging** — save results to a file
-- **Status code filtering** — show only the codes you care about
-- **Response size display** — spot anomalies in response sizes
+> *"If something is truly perfect, then that's it — there is nothing left. There is no room for imagination. No place left for that person to gain additional knowledge or improvement. That's the kind of creatures we are. We take joy in trying to exceed our grasp and trying to reach for something that, in the end, we have to admit, may in fact be unreachable!"*
+>
+> ~ Kurotsuchi Mayuri (Bleach)
 
 ---
 
-## 📸 Demo
+## Overview
 
-![PathPlunderer demo](poc.gif)
-
----
-
-## 🚀 Installation
+PathPlunderer is a Python web recon tool built for offensive security work. It combines directory brute-forcing, 403 bypass, subdomain enumeration, virtual host discovery, parameter fuzzing, multi-cloud bucket enumeration, and WordPress XML-RPC brute-force in one unified CLI. Every mode shares the same clean, aligned output format.
 
 ```bash
-# Clone the repository
+python3 pathplunderer.py -m dir -u https://target.com \
+  -x php --probe --secrets --bypass-403 \
+  --wayback --wayback-filter-status 200,301
+```
+
+<p align="center">
+  <img src="demo.gif" alt="PathPlunderer Demo" width="750"/>
+</p>
+
+---
+
+## Install
+
+```bash
 git clone https://github.com/VictorAzariah/PathPlunderer
 cd PathPlunderer
-
-# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-> **Requires:** Python 3.8+
+**Dependencies:** `colorama` · `requests` · `tqdm` · `dnspython`
 
 ---
 
-## ⚙️ Usage
+## Usage
 
-### Basic scan
+```
+python3 pathplunderer.py -m <mode> [options]
+python3 pathplunderer.py -m <mode> --help
+```
+
+| Mode | What it does |
+|------|-------------|
+| `dir` | Directory & file brute-force with smart recurse, 403 bypass, crawl, Wayback, secrets, WP detection |
+| `subdomain` | DNS subdomain enumeration |
+| `vhost` | Virtual host discovery via `Host:` header |
+| `fuzz` | URL / body / header fuzzer — replaces `FUZZ` keyword |
+| `cloud` | Multi-cloud bucket enum — AWS S3 · GCP Storage · Azure Blob |
+| `xmlrpc` | WordPress XML-RPC brute-force via `xmlrpc.php` |
+
+---
+
+## What Sets PathPlunderer Apart
+
+Most directory brute-force tools either recurse into everything (slowing the scan with hundreds of requests to `/images/`, `/css/`, `/fonts/`) or disable recursion entirely. **PathPlunderer does neither.**
+
+### Smart Recursion (default)
+
+PathPlunderer recurses automatically — but only into directories that could actually contain sensitive content. Static asset directories are skipped by default:
+
+| Skipped automatically | Recursed into |
+|-----------------------|--------------|
+| `/images/`, `/img/`, `/css/`, `/fonts/` | `/api/`, `/admin/`, `/js/` |
+| `/icons/`, `/sprites/`, `/thumbnails/` | `/v1/`, `/v2/`, `/uploads/` |
+| `/videos/`, `/audio/`, `/gfx/` | `/config/`, `/backup/`, `/docs/` |
+
 ```bash
-python PathPlunderer.py -u https://example.com -w Wordlists/common.txt
+# Smart recurse (default) — automatic, no flag needed
+python3 pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt
+
+# Full recurse — go into every directory including static ones
+python3 pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --recurse
+
+# Flat scan — no recursion at all
+python3 pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --no-recurse
 ```
 
-### With threads and extension fuzzing
+### Directory Listing Detection
+
+PathPlunderer automatically detects open directory listings during the scan (`Index of /` patterns) and alerts you immediately — without printing every file inside the directory:
+
+```
+[DIR-LIST] Open directory listing: https://target.com/uploads/
+```
+
+### Post-Scan Crawl
+
+After the wordlist scan finishes, PathPlunderer visits the pages it found and extracts links from their HTML. Any URLs discovered this way that were not already in the wordlist scan results are shown with a `[CRAWL]` tag — 300s, 403s, and 500s included, 404s skipped.
+
+---
+
+## Dir Mode
+
+### Output
+
+Feroxbuster-style fixed-width columns:
+
+```
+  200  GET     65l     877w    5266c  https://target.com/login.php
+  301  GET      2l      28w     169c  https://target.com/admin  → https://target.com/admin/
+  403  GET      0l       0w       0c  https://target.com/secret  [CRAWL]
+```
+
+### Scan Phases
+
+| Phase | Description | Flag |
+|-------|-------------|------|
+| 1 | Server calibration — latency, timeout, wildcard detection | always |
+| 2 | **Dir scan** — wordlist × extensions, smart-recursive by default | always |
+| 3 | **Crawl** — visit found pages, surface missed URLs (404 skipped) | always |
+| 4 | **Probe** — 130+ known sensitive paths | `--probe` |
+| 5 | **403 Bypass** — 100+ techniques | `--bypass-403` |
+| 6 | **Secrets** — scan responses for leaked keys | `--secrets` |
+| 7 | **Wayback** — query Wayback CDX API | `--wayback` |
+
+### Examples
+
 ```bash
-python PathPlunderer.py -u https://example.com -w Wordlists/common.txt -t 50 -x php,html,txt
+# Default — smart recurse on, crawl on, auto-loads wordlists/common.txt
+python3 pathplunderer.py -m dir -u https://target.com
+
+# Full feature run
+python3 pathplunderer.py -m dir -u https://target.com \
+  -w wordlists/directory-list-2.3-medium.txt -x php,html,txt \
+  --probe --secrets --bypass-403 \
+  --wayback --wayback-filter-status 200,301
+
+# Bypass-only
+python3 pathplunderer.py -m dir -u https://target.com/admin --bypass-only
+
+# Wayback dump
+python3 pathplunderer.py -m dir -u https://target.com \
+  --wayback-only --wayback-all --wayback-filter-status 200,301
+
+# WP theme + plugin version detection
+python3 pathplunderer.py -m dir -u https://wpsite.com -x php --wp-detect
 ```
 
-### With proxy (e.g. Burp Suite)
+### 403 Bypass Techniques
+
+- Path variants: `/admin/./` · `/admin//` · `/%2fadmin` · `/admin%00`
+- Encoding: double-encode · Unicode · null bytes
+- HTTP headers: `X-Forwarded-For` · `X-Original-URL` · `X-Rewrite-URL` · `X-Real-IP` · 20 more
+- IIS: `/admin;param=value` · Tomcat path params · Spring Boot tricks
+- CDN: Akamai and Cloudflare bypass headers
+
+### Secrets Detection
+
+40+ patterns: AWS keys · GCP service accounts · private keys · JWTs · Stripe / Shopify / Twilio / SendGrid · Slack webhooks · GitHub / GitLab tokens · database connection strings · `.env` dumps
+
+### WordPress Detection (`--wp-detect`)
+
+While crawling found pages, PathPlunderer parses HTML source to identify WordPress themes and plugins along with their version numbers extracted from `?ver=` query parameters:
+
+```
+  [WP-THEME]   twentytwentytwo                          ver:1.3
+  [WP-PLUGIN]  contact-form-7                           ver:5.7.6
+  [WP-PLUGIN]  woocommerce                              ver:8.2.1
+```
+
+---
+
+## Subdomain Mode
+
 ```bash
-python PathPlunderer.py -u https://example.com -w Wordlists/common.txt -p http://127.0.0.1:8080
+python3 pathplunderer.py -m subdomain \
+  --domain target.com \
+  -w wordlists/subdomains-top5000.txt \
+  --resolver 8.8.8.8 \
+  --check-cname \
+  -t 200 -o subs.txt
 ```
 
-### With Basic Auth
+---
+
+## VHost Mode
+
 ```bash
-python PathPlunderer.py -u https://example.com -w Wordlists/common.txt --user admin --pass secret
+python3 pathplunderer.py -m vhost \
+  -u http://10.10.11.100 \
+  -w wordlists/vhosts.txt \
+  --domain target.htb \
+  --append-domain
+
+# Filter same-size noise
+python3 pathplunderer.py -m vhost \
+  -u https://10.10.10.5 \
+  -w wordlists/subdomains-top5000.txt \
+  --domain target.htb --xs 4242
 ```
 
-### With custom headers and cookies
+---
+
+## Fuzz Mode
+
+FUZZ keyword works in URL, path, body, and headers.
+
 ```bash
-python PathPlunderer.py -u https://example.com -w Wordlists/common.txt \
-  -H 'Authorization: Bearer TOKEN' \
-  -c 'session=abcdef123456'
+# Path fuzzing
+python3 pathplunderer.py -m fuzz \
+  -u "https://api.target.com/v1/user/FUZZ" \
+  -w wordlists/api-endpoints.txt
+
+# Credential brute-force via POST (like ffuf -d)
+python3 pathplunderer.py -m fuzz \
+  -u "https://target.com/login" \
+  --data-urlencoded "user=admin&password=FUZZ" \
+  -w wordlists/rockyou.txt -b 200
+
+# JSON body fuzzing (Content-Type set automatically)
+python3 pathplunderer.py -m fuzz \
+  -u "https://api.target.com/auth" \
+  --data-json '{"user":"admin","pass":"FUZZ"}' \
+  -w wordlists/passwords.txt -b 401
+
+# Header fuzzing
+python3 pathplunderer.py -m fuzz \
+  -u "https://target.com" \
+  -H "X-Api-Version: FUZZ" \
+  -w wordlists/fuzz-general.txt
 ```
 
-### Save results to file
+---
+
+## Cloud Mode
+
+Methodology from **cloud_enum** and **lazys3** — generates keyword mutations and probes all three major cloud providers.
+
 ```bash
-python PathPlunderer.py -u https://example.com -w Wordlists/common.txt -o results.txt
+# Single keyword
+python3 pathplunderer.py -m cloud -k acmecorp
+
+# Multiple keywords + custom mutations
+python3 pathplunderer.py -m cloud \
+  -k acme -k acme-corp \
+  -M wordlists/cloud_mutations.txt \
+  -t 20
+
+# Exact keywords only (no mutation expansion)
+python3 pathplunderer.py -m cloud -k acmecorp --quickscan
+```
+
+| Provider | Endpoints checked |
+|----------|-----------------|
+| AWS S3 | 22 (virtual-hosted + path-style + all major regions + `-local` variant) |
+| GCP Storage | 7 (googleapis.com, Firebase, App Engine) |
+| Azure | 10 + DNS CNAME fingerprinting |
+
+| Status | Meaning |
+|--------|---------|
+| 🟢 OPEN | Bucket exists and lists files publicly |
+| 🔒 PRIVATE | Bucket exists, authentication required |
+| 🔵 DNS-EXISTS | CNAME resolves — Azure bucket exists even if HTTP is locked |
+
+---
+
+## XML-RPC Mode
+
+Brute-forces WordPress credentials via the `xmlrpc.php` endpoint using the `wp.getUsersBlogs` method. Based on the same technique as wpscan's XML-RPC attack.
+
+```bash
+# Single username + password list
+python3 pathplunderer.py -m xmlrpc \
+  -u https://target.com \
+  -U admin \
+  -P wordlists/rockyou.txt \
+  -t 20
+
+# Username list + password list
+python3 pathplunderer.py -m xmlrpc \
+  -u https://target.com \
+  -U wordlists/users.txt \
+  -P wordlists/passwords.txt \
+  --stop-on-first
+
+# Through Burp
+python3 pathplunderer.py -m xmlrpc \
+  -u https://target.com \
+  -U admin -P passwords.txt \
+  --burp -t 5
 ```
 
 ---
 
-## 🗂️ All Options
+## Wordlists
+
+`wordlists/common.txt` is **auto-loaded** when `-w` is not specified.
+
+### Download Commands
+
+```bash
+mkdir -p wordlists
+
+# Dir scanning
+curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/directory-list-2.3-medium.txt \
+     -o wordlists/directory-list-2.3-medium.txt
+
+curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/raft-large-words.txt \
+     -o wordlists/raft-large-words.txt
+
+# Subdomain
+curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt \
+     -o wordlists/subdomains-top5000.txt
+
+# VHost
+curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/namelist.txt \
+     -o wordlists/vhosts.txt
+
+# API / Fuzz
+curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/api/api-endpoints.txt \
+     -o wordlists/api-endpoints.txt
+
+curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Fuzzing/fuzz-Bo0oM.txt \
+     -o wordlists/fuzz-general.txt
+```
+
+---
+
+## GitHub Topics (suggested)
 
 ```
-usage: PathPlunderer.py [-h] -u URL -w WORDFILE [--user USER] [--pass PASSWORD]
-                        [-x EXTS] [-t THREADS] [-o LOGFILE] [-s CODES] [-m METHODS]
-                        [-f] [-z [USER_AGENT]] [-p PROXY_URL] [-r] [-k]
-                        [--timeout TIMEOUT] [-c COOKIES] [-H HEADERS] [-d DATA]
-
-options:
-  -h, --help                    Show this help message and exit
-  -u, --url         URL         Target URL to brute-force
-  -w, --wordlist    WORDFILE    Wordlist file to use
-  --user            USER        Username for Basic Auth
-  --pass            PASSWORD    Password for Basic Auth
-  -x                EXTS        File extensions (comma-separated, e.g. -x php,txt,bak)
-  -t, --threads     THREADS     Number of concurrent threads (default: 10)
-  -o, --output      LOGFILE     Save results to file (e.g. -o results.txt)
-  -s                CODES       HTTP status codes to show (default: 200,204,301,302,307,401,403)
-  -m                METHODS     HTTP method to use: POST,HEAD,PUT,OPTIONS,PATCH (default: GET)
-  -f                            Force wildcard processing
-  -z, --user-agent  [AGENT]     Custom (-z 'MyAgent') or random (-z) User-Agent
-  -p, --proxy       PROXY_URL   Proxy URL [http(s)://host:port]
-  -r, --follow-redirect         Follow HTTP redirects
-  -k, --insecure                Allow insecure server connections (skip TLS verify)
-  --timeout         TIMEOUT     HTTP request timeout in seconds (default: 10)
-  -c, --cookies     COOKIES     Cookies string (e.g. -c 'session=abc123')
-  -H, --headers     HEADERS     Custom headers (e.g. -H 'X-Header:value')
-  -d, --data        DATA        Request body data for POST/PUT/PATCH
+web-recon  directory-brute-force  fuzzer  403-bypass  subdomain-enumeration
+cloud-security  aws-s3  wordpress-security  xmlrpc-bruteforce
+penetration-testing  bug-bounty  ctf  python  security-tools
 ```
 
----
-
-## 📁 Wordlists
-
-The `/Wordlists` folder contains several wordlist sizes to suit different scan depths:
-
-| File | Size | Best For |
-|------|------|----------|
-| `small.txt` | ~100 entries | Quick checks |
-| `common.txt` | ~1,000 entries | Standard scans |
-| `medium.txt` | ~10,000 entries | Thorough enumeration |
-| `large.txt` | ~100,000+ entries | Deep / CTF scans |
-
-> 💡 For even larger wordlists, check out **[SecLists](https://github.com/danielmiessler/SecLists/tree/master/Discovery/Web-Content)** — the gold standard for content discovery wordlists.
+**Description for repository:**
+> Multi-mode web attack surface discovery tool — directory brute-force with smart recursion, 403 bypass, Wayback Machine, cloud bucket enum (S3/GCP/Azure), WordPress XML-RPC brute-force, subdomain and vhost enumeration.
 
 ---
 
-## 📋 Changelog
+## Legal
 
-### v2.0
-- `-k` / `--insecure` flag to accept self-signed/invalid SSL certificates
-- Auto-detect HTTP/HTTPS protocol from bare domain input
-- Expanded status code range (200–400) with sorted output
-- Interrupt current recursive path with `Ctrl+C` without stopping the whole scan
-- `--timeout` flag for configurable HTTP request timeout
-- `-p` / `--proxy` support for HTTP(S) proxies
-- `-r` / `--follow-redirect` flag
-- Response size displayed alongside status codes
-- `-c` / `--cookies` flag for session-based scanning
-- `-H` / `--headers` flag for custom request headers
-- `-m` / `--method` flag for non-GET HTTP methods
-- `-d` / `--data` flag for POST/PUT/PATCH request body
-- Basic Auth support via `--user` and `--pass`
-
-### v1.0
-- Initial release with core directory and file brute-forcing
-- Multi-threaded scanning
-- Recursive mode
-- Extension fuzzing
-- Output logging
+Authorized testing only. Ensure you have explicit written permission before scanning any system. The author is not responsible for misuse.
 
 ---
 
-## ⚠️ Legal Disclaimer
-
-> **PathPlunderer is intended for authorized security testing only.**
-> Only use this tool against systems you own or have explicit written permission to test.
-> Unauthorized scanning may violate laws in your jurisdiction.
-> The author accepts no liability for misuse of this tool.
-
----
-
-## 📄 License
-
-This project is licensed under the [Apache 2.0 License](LICENSE).
-
----
-
-## 🙏 Credits
-
-- Wordlists sourced from **[SecLists](https://github.com/danielmiessler/SecLists)** by Daniel Miessler
-- Inspired by tools like `dirb`, `gobuster`, and `dirsearch`
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! To contribute:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes (`git commit -m 'Add my feature'`)
-4. Push to the branch (`git push origin feature/my-feature`)
-5. Open a Pull Request
-
-For major changes, please open an issue first to discuss what you'd like to change.
-
----
-
-<p align="center">Made with ❤️ for the security community &nbsp;|&nbsp; Have fun! ✌️</p>
+<div align="center">
+<i>PathPlunderer v4.1 · by Victor Azariah</i><br/>
+<i>Inspired by gobuster · feroxbuster · cloud_enum · lazys3 · SecLists</i>
+</div>
