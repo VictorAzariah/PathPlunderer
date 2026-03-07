@@ -39,7 +39,7 @@
 PathPlunderer is a Python web recon tool built for offensive security work. It combines directory brute-forcing, 403 bypass, subdomain enumeration, virtual host discovery, parameter fuzzing, multi-cloud bucket enumeration, and WordPress XML-RPC brute-force — all in one unified CLI with clean, aligned output.
 
 ```bash
-python3 pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --bypass-403 --wayback --wayback-filter-status 200,301
+python pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --bypass-403 --wayback --wayback-filter-status 200,301
 ```
 
 <p align="center">
@@ -63,8 +63,8 @@ pip install -r requirements.txt
 ## 🗺️ Modes
 
 ```
-python3 pathplunderer.py -m <mode> [options]
-python3 pathplunderer.py -m <mode> --help
+python pathplunderer.py -m <mode> [options]
+python pathplunderer.py -m <mode> --help
 ```
 
 | Mode | 💡 What it does |
@@ -94,13 +94,13 @@ Recurses automatically into directories that could contain sensitive content, an
 
 ```bash
 # 🧠 Smart recurse — default, no flag needed
-python3 pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt
+python pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt
 
 # 🔓 Full recurse — go into every discovered directory
-python3 pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --recurse
+python pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --recurse
 
 # 🚫 Flat scan — no recursion at all
-python3 pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --no-recurse
+python pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --no-recurse
 ```
 
 ### 📂 Directory Listing Detection *(always on)*
@@ -145,22 +145,22 @@ Feroxbuster-style fixed-width columns — status, method, lines, words, bytes, U
 
 ```bash
 # Default — smart recurse on, crawl on, auto-loads wordlists/common.txt
-python3 pathplunderer.py -m dir -u https://target.com
+python pathplunderer.py -m dir -u https://target.com
 
 # With extensions + full recon suite
-python3 pathplunderer.py -m dir -u https://target.com -w wordlists/directory-list-2.3-medium.txt -x php,html,txt --probe --secrets --bypass-403 --wayback --wayback-filter-status 200,301
+python pathplunderer.py -m dir -u https://target.com -w wordlists/directory-list-2.3-medium.txt -x php,html,txt --probe --secrets --bypass-403 --wayback --wayback-filter-status 200,301
 
 # Bypass-only mode (skip wordlist scan)
-python3 pathplunderer.py -m dir -u https://target.com/admin --bypass-only
+python pathplunderer.py -m dir -u https://target.com/admin --bypass-only
 
 # Wayback dump only
-python3 pathplunderer.py -m dir -u https://target.com --wayback-only --wayback-all --wayback-filter-status 200,301
+python pathplunderer.py -m dir -u https://target.com --wayback-only --wayback-all --wayback-filter-status 200,301
 
 # WordPress theme + plugin version detection
-python3 pathplunderer.py -m dir -u https://wpsite.com -x php --wp-detect
+python pathplunderer.py -m dir -u https://wpsite.com -x php --wp-detect
 
 # High-speed scan
-python3 pathplunderer.py -m dir -u https://target.com -w wordlists/raft-large-words.txt -t 100
+python pathplunderer.py -m dir -u https://target.com -w wordlists/raft-large-words.txt -t 100
 ```
 
 ### 🔓 403 Bypass Techniques
@@ -192,7 +192,7 @@ While crawling, PathPlunderer parses HTML source and extracts WordPress theme an
 ## 🌐 Subdomain Mode
 
 ```bash
-python3 pathplunderer.py -m subdomain --domain target.com -w wordlists/subdomains-top5000.txt --resolver 8.8.8.8 --check-cname -t 200 -o subs.txt
+python pathplunderer.py -m subdomain --domain target.com -w wordlists/subdomains-top5000.txt --resolver 8.8.8.8 --check-cname -t 200 -o subs.txt
 ```
 
 ---
@@ -201,10 +201,10 @@ python3 pathplunderer.py -m subdomain --domain target.com -w wordlists/subdomain
 
 ```bash
 # HTB / CTF style
-python3 pathplunderer.py -m vhost -u http://10.10.11.100 -w wordlists/vhosts.txt --domain target.htb --append-domain
+python pathplunderer.py -m vhost -u http://10.10.11.100 -w wordlists/vhosts.txt --domain target.htb --append-domain
 
 # Filter noise by response size
-python3 pathplunderer.py -m vhost -u https://10.10.10.5 -w wordlists/subdomains-top5000.txt --domain target.htb --xs 4242
+python pathplunderer.py -m vhost -u https://10.10.10.5 -w wordlists/subdomains-top5000.txt --domain target.htb --xs 4242
 ```
 
 ---
@@ -215,16 +215,16 @@ The `FUZZ` keyword can go anywhere — URL path, POST body, or headers.
 
 ```bash
 # Path fuzzing
-python3 pathplunderer.py -m fuzz -u "https://api.target.com/v1/user/FUZZ" -w wordlists/api-endpoints.txt
+python pathplunderer.py -m fuzz -u "https://api.target.com/v1/user/FUZZ" -w wordlists/api-endpoints.txt
 
 # POST credential brute-force (URL-encoded body, like ffuf -d)
-python3 pathplunderer.py -m fuzz -u "https://target.com/login" --data-urlencoded "user=admin&password=FUZZ" -w wordlists/rockyou.txt -b 200
+python pathplunderer.py -m fuzz -u "https://target.com/login" --data-urlencoded "user=admin&password=FUZZ" -w wordlists/rockyou.txt -b 200
 
 # JSON body fuzzing (Content-Type: application/json set automatically)
-python3 pathplunderer.py -m fuzz -u "https://api.target.com/auth" --data-json '{"user":"admin","pass":"FUZZ"}' -w wordlists/passwords.txt -b 401
+python pathplunderer.py -m fuzz -u "https://api.target.com/auth" --data-json '{"user":"admin","pass":"FUZZ"}' -w wordlists/passwords.txt -b 401
 
 # Header fuzzing
-python3 pathplunderer.py -m fuzz -u "https://target.com" -H "X-Api-Version: FUZZ" -w wordlists/fuzz-general.txt
+python pathplunderer.py -m fuzz -u "https://target.com" -H "X-Api-Version: FUZZ" -w wordlists/fuzz-general.txt
 ```
 
 ---
@@ -235,16 +235,16 @@ Generates keyword mutations and probes all three major cloud providers — metho
 
 ```bash
 # Single keyword
-python3 pathplunderer.py -m cloud -k acmecorp
+python pathplunderer.py -m cloud -k acmecorp
 
 # Multiple keywords + custom mutation list
-python3 pathplunderer.py -m cloud -k acme -k acme-corp -M wordlists/cloud_mutations.txt -t 20
+python pathplunderer.py -m cloud -k acme -k acme-corp -M wordlists/cloud_mutations.txt -t 20
 
 # Exact keywords only, no mutation expansion
-python3 pathplunderer.py -m cloud -k acmecorp --quickscan
+python pathplunderer.py -m cloud -k acmecorp --quickscan
 
 # Disable specific providers
-python3 pathplunderer.py -m cloud -k target --disable-azure
+python pathplunderer.py -m cloud -k target --disable-azure
 ```
 
 | ☁️ Provider | 🔢 Endpoints |
@@ -267,13 +267,13 @@ Brute-forces WordPress credentials via `xmlrpc.php` using the `wp.getUsersBlogs`
 
 ```bash
 # Single username + password list
-python3 pathplunderer.py -m xmlrpc -u https://target.com -U admin -P wordlists/rockyou.txt -t 20
+python pathplunderer.py -m xmlrpc -u https://target.com -U admin -P wordlists/rockyou.txt -t 20
 
 # Username list + password list, stop on first hit
-python3 pathplunderer.py -m xmlrpc -u https://target.com -U wordlists/users.txt -P wordlists/passwords.txt --stop-on-first
+python pathplunderer.py -m xmlrpc -u https://target.com -U wordlists/users.txt -P wordlists/passwords.txt --stop-on-first
 
 # Through Burp Suite
-python3 pathplunderer.py -m xmlrpc -u https://target.com -U admin -P passwords.txt --burp -t 5
+python pathplunderer.py -m xmlrpc -u https://target.com -U admin -P passwords.txt --burp -t 5
 ```
 
 ---
