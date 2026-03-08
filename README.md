@@ -103,6 +103,14 @@ python pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --recu
 python pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --no-recurse
 ```
 
+### 🕰️ Wayback Machine CDX API
+
+PathPlunderer doesn't just scan what is currently on the server; it looks at what *used* to be there. By querying the Wayback Machine CDX API, it surfaces forgotten endpoints, exposed secrets in old files, and historical paths that might still be active but are no longer linked.
+
+* **Live Checking:** Automatically verifies if the archived URLs are still accessible on the live target.
+* **Smart Filtering:** Use `--wayback-filter-status` to easily cut through the noise and only return active or forbidden pages (e.g., 200, 301, 403).
+* **Passive Recon:** Use `--wayback-all` to instantly dump every known historical URL without sending a single aggressive request to the target server.
+
 ### 📂 Directory Listing Detection *(always on)*
 
 Automatically detects open `Index of /` listings and alerts you immediately — without flooding output with every file inside:
