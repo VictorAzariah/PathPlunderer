@@ -1948,18 +1948,44 @@ class PathPlunderer:
     def _prechecks(self, session: requests.Session) -> bool:
         tqdm.write(Fore.CYAN + "  [*] Calibrating server..." + Fore.RESET)
         try:
-            probe = session.get(self.url, timeout=15, allow_redirects=True)
-            # Update base_url to landing URL if redirected to a different path
+            probe = session.get(self.url, timeout=15, allow_redirects=True,
+                                verify=not self.insecure,
+                                proxies={"http": self.proxy_url, "https": self.proxy_url} if self.proxy_url else None)
             if probe.url != self.url:
-                tqdm.write(Fore.YELLOW
-                    + f"  [*] Redirected: {self.url} → {probe.url}" + Fore.RESET)
-                self.url = probe.url if probe.url.endswith("/") else probe.url + "/"
-        except requests.exceptions.ConnectionError:
-            tqdm.write(Fore.RED + f"  [!] Cannot reach {self.url}" + Fore.RESET); return False
+                landed       = probe.url
+                orig_parsed  = urlparse(self.url)
+                land_parsed  = urlparse(landed)
+                landed_path  = land_parsed.path
+
+                # Never follow redirects to a different host — e.g. SSO/auth redirects
+                cross_host   = (land_parsed.netloc and land_parsed.netloc != orig_parsed.netloc)
+                # Redirected to a file (login.jsp, index.php, etc.) — keep original base
+                is_file      = "." in landed_path.rsplit("/", 1)[-1]
+
+                if cross_host:
+                    tqdm.write(Fore.YELLOW
+                        + f"  [*] Cross-host redirect ignored: {self.url} → {landed} (keeping original base)" + Fore.RESET)
+                elif is_file:
+                    tqdm.write(Fore.YELLOW
+                        + f"  [*] Redirect to file ignored: {self.url} → {landed} (keeping base URL for scan)" + Fore.RESET)
+                else:
+                    tqdm.write(Fore.YELLOW + f"  [*] Redirected: {self.url} → {landed}" + Fore.RESET)
+                    self.url = landed if landed.endswith("/") else landed + "/"
+        except requests.exceptions.SSLError as e:
+            tqdm.write(Fore.RED + f"  [!] SSL error — try -k / --insecure\n      ({e})" + Fore.RESET)
+            return False
+        except requests.exceptions.ProxyError as e:
+            tqdm.write(Fore.RED + f"  [!] Proxy error: {e}" + Fore.RESET)
+            return False
+        except requests.exceptions.ConnectionError as e:
+            tqdm.write(Fore.RED + f"  [!] Cannot reach {self.url}\n      ({e})" + Fore.RESET)
+            return False
         except requests.exceptions.Timeout:
-            tqdm.write(Fore.RED + f"  [!] Server timeout (15s) — try --timeout 30" + Fore.RESET); return False
+            tqdm.write(Fore.RED + f"  [!] Server timeout (15s) — try --timeout 30" + Fore.RESET)
+            return False
         except Exception as e:
-            tqdm.write(Fore.RED + f"  [!] Connection error: {e}" + Fore.RESET); return False
+            tqdm.write(Fore.RED + f"  [!] Connection error: {e}" + Fore.RESET)
+            return False
 
         latencies = []
         for _ in range(5):
@@ -2296,8 +2322,8 @@ class PathPlunderer:
             if not self._stop.is_set():
                 self._run_secrets_crawl(session)
 
-        # PHASE 5 — Wayback Machine (runs regardless of recursion state)
-        if self.wayback:
+        # PHASE 5 — Wayback Machine
+        if (self.wayback or self.wayback_all) and not self._stop.is_set():
             self._run_wayback(session, self.url)
 
         self._print_summary()
