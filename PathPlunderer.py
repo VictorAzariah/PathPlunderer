@@ -489,14 +489,71 @@ def generate_bypass_paths(base_url: str, path: str) -> List[Dict]:
         add(f"{b}/{p}", headers={"Content-Length":"0"}, method="POST")
         add(f"{b}/{p}", headers={"Content-Type":"application/x-www-form-urlencoded"}, method="POST")
 
-        # Header-based bypasses (all BYPASS_HEADERS)
-        for h in BYPASS_HEADERS:
-            add(f"{b}/{p}", headers=h)
+        # ── PortSwigger/403-bypasser: per-segment path permutations ──────────
+        # For each payload, insert it at every position across all path segments.
+        # Based on Orange Tsai's "Breaking Parser Logic" technique.
+        SEGMENT_PAYLOADS = ["..;", ".;", ";", "..%3B", ".%3B", "%3B"]
+        if p and "/" in p:
+            parts = p.split("/")
+            for payload in SEGMENT_PAYLOADS:
+                # Insert payload AFTER each segment (all permutations)
+                for i in range(len(parts)):
+                    new_parts = parts[:]; new_parts[i] = new_parts[i] + payload
+                    add(f"{b}/" + "/".join(new_parts))
+                # Insert payload BEFORE each segment
+                for i in range(len(parts)):
+                    new_parts = parts[:]; new_parts[i] = payload + new_parts[i]
+                    add(f"{b}/" + "/".join(new_parts))
+                # Append payload at end with and without trailing slash
+                add(f"{b}/{p}{payload}"); add(f"{b}/{p}{payload}/")
+        elif p:
+            for payload in SEGMENT_PAYLOADS:
+                add(f"{b}/{p}{payload}"); add(f"{b}/{p}{payload}/")
+                add(f"{b}/{payload}{p}"); add(f"{b}/{payload}/{p}")
 
-        # X-Original-URL / Rewrite tricks pointing to path
-        for k in ["X-Original-URL","X-Rewrite-URL","X-Override-URL","X-Forwarded-Path"]:
-            add(f"{b}/", headers={k: f"/{p}"})
-            add(f"{b}/", headers={k: f"/{p}/"})
+    # ── PortSwigger 403-bypasser additional header combos ────────────────────
+    # https://github.com/portswigger/403-bypasser
+    # Multi-value IP headers (some parsers take first, some last)
+    add(f"{b}/{p}", headers={"X-Forwarded-For": "127.0.0.1, 127.0.0.2, 127.0.0.3"})
+    add(f"{b}/{p}", headers={"X-Forwarded-For": "127.0.0.1:443"})
+    add(f"{b}/{p}", headers={"X-Forwarded-For": "127.0.0.1\t127.0.0.2"})
+    # Forged internal host
+    add(f"{b}/{p}", headers={"X-Forwarded-Host": f"{urlparse(b).netloc}"})
+    add(f"{b}/{p}", headers={"X-Host": f"{urlparse(b).netloc}"})
+    # Base URL override to root (portswigger style)
+    add(f"{b}/{p}", headers={"X-Original-URL": f"/{p}"})
+    add(f"{b}/{p}", headers={"X-Rewrite-URL": f"/{p}"})
+    # Path parameter injection (;param=value between segments)
+    if "/" in p:
+        segs = p.split("/")
+        add(f"{b}/{segs[0]};x=y/{'/'.join(segs[1:])}")
+    # Overlong UTF-8 encoding of slash
+    add(f"{b}/{p.replace('/', '%c0%af')}")
+    add(f"{b}/{p.replace('/', '%c1%9c')}")
+    # Spring MVC suffix bypass
+    add(f"{b}/{p}.json"); add(f"{b}/{p}.css"); add(f"{b}/{p}.ico")
+    # HTTP/2 pseudo-header path override (repr as plain header for WAF bypass)
+    add(f"{b}/{p}", headers={":path": f"/{p}/../{p}"})
+    # Nginx alias bypass
+    add(f"{b}/{p}../"); add(f"{b}/{p}/%2e%2e/")
+    # Apache mod_rewrite bypass
+    add(f"{b}/{p}%3f"); add(f"{b}/{p}%23")
+    # IIS tilde short name
+    add(f"{b}/~1/{p}"); add(f"{b}/{p}~1")
+
+    # HTTP/1.0 downgrade (Abbas.heybati technique)
+    # Some WAFs/proxies only inspect HTTP/1.1 traffic
+    add(f"{b}/{p}" if p else f"{b}/", headers={"Connection": "close"})
+    add(f"{b}/{p}" if p else f"{b}/", headers={"X-HTTP-Version": "HTTP/1.0"})
+
+    # ── Header-based bypasses (all BYPASS_HEADERS) ───────────────────────
+    for h in BYPASS_HEADERS:
+        add(f"{b}/{p}", headers=h)
+
+    # X-Original-URL / Rewrite tricks pointing to path
+    for k in ["X-Original-URL","X-Rewrite-URL","X-Override-URL","X-Forwarded-Path"]:
+        add(f"{b}/", headers={k: f"/{p}"})
+        add(f"{b}/", headers={k: f"/{p}/"})
 
         # Path + IP spoofing combo
         for ip_header in ["X-Forwarded-For","X-Real-IP","True-Client-IP"]:
@@ -886,9 +943,16 @@ class PathPlunderer:
     ):
         # ── wordlist ──
         self.wordlist = []
-        # Default wordlist: wordlists/common.txt next to this script
+        # Normalize backslashes (e.g. "Wordlists\common.txt" typed on Windows/mixed env)
+        if wordfile and wordfile != "-":
+            wordfile = wordfile.replace("\\", "/")
+        # Default wordlist: wordlists/common.txt or Wordlists/common.txt next to this script
         _script_dir = Path(__file__).parent
-        _default_wl = _script_dir / "wordlists" / "common.txt"
+        _default_wl = next(
+            (p for p in [_script_dir / "wordlists" / "common.txt",
+                          _script_dir / "Wordlists" / "common.txt"] if p.exists()),
+            _script_dir / "wordlists" / "common.txt"
+        )
         if wordfile == "-" and _default_wl.exists() and (bypass_only is False):
             if sys.stdin.isatty():
                 wordfile = str(_default_wl)
@@ -1676,7 +1740,7 @@ class PathPlunderer:
 
             unique_urls = sorted({row[0] for row in rows[1:]})
             # Exclude paths already found during dirbust (avoid duplicates)
-            already_found_paths = {urlparse(r.url).path for r in self.results}
+            already_found_paths = {urlparse(res.url).path for res in self.results}
             unique_urls = [u for u in unique_urls
                            if urlparse(u).path not in already_found_paths]
             tqdm.write(Fore.MAGENTA + f"  [WAYBACK] {len(unique_urls)} unique archived URLs" + Fore.RESET)
@@ -1686,52 +1750,14 @@ class PathPlunderer:
 
             # ── MODE: wayback-all ──
             if self.wayback_all:
-                tqdm.write(Fore.MAGENTA + f"  [WAYBACK] Printing all {len(unique_urls)} URLs..." + Fore.RESET)
-                check_status = False
-                if sys.stdin.isatty():
-                    tqdm.write(Fore.CYAN + f"\n  Check live status codes for all {len(unique_urls)} URLs? [y/N] → " + Fore.RESET, end="", file=sys.stderr)
-                    try: check_status = input().strip().lower() in ("y","yes")
-                    except (EOFError, KeyboardInterrupt): check_status = False
-
-                if check_status:
-                    pbar = tqdm(total=len(unique_urls), desc="  wayback", leave=False) if not self.no_progress else None
-                    def _check_all(wb_url):
-                        if self._stop.is_set(): return
-                        resp = self._request(session, "GET", wb_url)
-                        if pbar: pbar.update(1)
-                        sc   = resp.status_code if resp else "ERR"
-                        size = len(resp.content) if resp else 0
-                        # Apply filter if set
-                        if self.wayback_filter_status and isinstance(sc, int):
-                            if sc not in self.wayback_filter_status: return
-                        sensitive, reason = looks_sensitive(wb_url)
-                        sc_color = (Fore.GREEN if isinstance(sc, int) and sc < 300 else
-                                    Fore.BLUE  if isinstance(sc, int) and sc < 400 else
-                                    Fore.YELLOW if isinstance(sc, int) and sc < 500 else Fore.RED)
-                        sens_tag = (Fore.RED + f" ⚑ {reason}" + Fore.RESET) if sensitive else ""
-                        line = f"  [{sc}] [{size}B] {wb_url}"
-                        tqdm.write(sc_color + line + Fore.RESET + sens_tag)
-                        with self._lock:
-                            output_lines.append(line + (f"  # {reason}" if sensitive else ""))
-                            if isinstance(sc, int) and sc == 404: wayback_404_hits.append(wb_url)
-                            if isinstance(sc, int) and sc == 403: wayback_403_hits.append(wb_url)
-                    try:
-                        with ThreadPoolExecutor(max_workers=min(self.threads, 50)) as ex:
-                            futs = [ex.submit(_check_all, u) for u in unique_urls]
-                            for f in as_completed(futs):
-                                if self._stop.is_set(): [ff.cancel() for ff in futs]; break
-                                try: f.result()
-                                except Exception: pass
-                    finally:
-                        if pbar: pbar.close()
-                else:
-                    for wb_url in unique_urls:
-                        if self._stop.is_set(): break
-                        sensitive, reason = looks_sensitive(wb_url)
-                        colour = Fore.RED if sensitive else Fore.WHITE
-                        tag    = f" ⚑ {reason}" if sensitive else ""
-                        tqdm.write(colour + f"  {wb_url}{tag}" + Fore.RESET)
-                        output_lines.append(wb_url + (f"  # {reason}" if sensitive else ""))
+                tqdm.write(Fore.MAGENTA + f"  [WAYBACK] Dumping all {len(unique_urls)} archived URLs..." + Fore.RESET)
+                for wb_url in unique_urls:
+                    if self._stop.is_set(): break
+                    sensitive, reason = looks_sensitive(wb_url)
+                    colour = Fore.RED if sensitive else Fore.WHITE
+                    tag    = f" ⚑ {reason}" if sensitive else ""
+                    tqdm.write(colour + f"  {wb_url}{tag}" + Fore.RESET)
+                    output_lines.append(wb_url + (f"  # {reason}" if sensitive else ""))
 
             # ── MODE: sensitive (default) ──
             else:
@@ -1947,6 +1973,9 @@ class PathPlunderer:
     # ──────────────────────────────────────────────────────────────────────
     def _prechecks(self, session: requests.Session) -> bool:
         tqdm.write(Fore.CYAN + "  [*] Calibrating server..." + Fore.RESET)
+        if not self.url or self.url in ("http://", "https://", "http:/", "https:/"):
+            tqdm.write(Fore.RED + "  [!] Invalid or empty URL — use -u https://target.com" + Fore.RESET)
+            return False
         try:
             probe = session.get(self.url, timeout=15, allow_redirects=True,
                                 verify=not self.insecure,
@@ -1972,13 +2001,25 @@ class PathPlunderer:
                     tqdm.write(Fore.YELLOW + f"  [*] Redirected: {self.url} → {landed}" + Fore.RESET)
                     self.url = landed if landed.endswith("/") else landed + "/"
         except requests.exceptions.SSLError as e:
-            tqdm.write(Fore.RED + f"  [!] SSL error — try -k / --insecure\n      ({e})" + Fore.RESET)
+            err_str = str(e).lower()
+            if "certificate" in err_str or "ssl" in err_str or "verify" in err_str:
+                tqdm.write(Fore.RED + f"  [!] SSL certificate error — try -k / --insecure to skip TLS verification\n      ({e})" + Fore.RESET)
+            else:
+                tqdm.write(Fore.RED + f"  [!] SSL error — try -k / --insecure\n      ({e})" + Fore.RESET)
             return False
         except requests.exceptions.ProxyError as e:
             tqdm.write(Fore.RED + f"  [!] Proxy error: {e}" + Fore.RESET)
             return False
         except requests.exceptions.ConnectionError as e:
-            tqdm.write(Fore.RED + f"  [!] Cannot reach {self.url}\n      ({e})" + Fore.RESET)
+            err_str = str(e).lower()
+            hint = ""
+            if "ssl" in err_str or "certificate" in err_str:
+                hint = "\n      → Try -k / --insecure to skip TLS verification"
+            elif "name or service not known" in err_str or "nodename nor servname" in err_str:
+                hint = "\n      → Check the hostname is correct and DNS resolves"
+            elif "connection refused" in err_str:
+                hint = "\n      → Is the server running and port open?"
+            tqdm.write(Fore.RED + f"  [!] Cannot reach {self.url}{hint}\n      ({e})" + Fore.RESET)
             return False
         except requests.exceptions.Timeout:
             tqdm.write(Fore.RED + f"  [!] Server timeout (15s) — try --timeout 30" + Fore.RESET)
@@ -2193,7 +2234,7 @@ class PathPlunderer:
         if not self.quiet: self._print_header()
         self.start_time = time.perf_counter()
 
-        if self.wayback_only:
+        if self.wayback_only or (self.wayback_all and not self.wayback):
             self._run_wayback(session, self.url)
             self._print_summary(); return self.results
 
@@ -3219,8 +3260,37 @@ CLOUD_MUTATIONS_DEFAULT = [
     "corp-", "corp.", "-corp", ".corp",
     "inc-", "-inc", "llc-", "-llc",
     "io-", "-io", ".io",
-    # Number suffixes (frequently misconfigured)
-    "-1", "-2", "-3", "-01", "-02",
+    # ── S3 static website hosting (the "<keyword>website" pattern) ──────────
+    "-website", "website", "website-", "-web-assets", "-site", "-sites",
+    # ── lazys3 common_bucket_prefixes ────────────────────────────────────────
+    "s3", "backup", "prod", "dev", "staging", "test", "data", "media", "static",
+    "assets", "upload", "uploads", "file", "files", "log", "logs", "archive",
+    "public", "private", "internal", "admin", "api", "app", "web", "www",
+    "cdn", "content", "docs", "images", "video", "videos", "export", "imports",
+    "report", "reports", "resources", "secret", "secrets", "env", "sandbox",
+    "uat", "qa", "demo", "preview", "release", "build", "deploy", "artifact",
+    "package", "packages", "registry", "repo", "source", "src", "scripts",
+    "bin", "dist", "download", "downloads", "software", "tools", "portal",
+    "helpdesk", "support", "hr", "finance", "legal", "marketing", "sales",
+    "ops", "devops", "infra", "database", "cache", "search", "monitoring",
+    "analytics", "audit", "security", "certs", "keys", "credentials", "email",
+    "mail", "mobile", "frontend", "backend", "old", "new", "bak", "copy",
+    # ── cloud_enum fuzz.txt patterns ─────────────────────────────────────────
+    "-storage", "-store", "-bucket", "-blobs", "-blob", "-objects", "-obj",
+    "-raw", "-dump", "-dumps", "-share", "-shared", "-transfer", "-sync",
+    "-mirror", "-replica", "-cache", "-cdn-assets", "-public-assets",
+    "-private-assets", "-static-files", "-media-files", "-user-uploads",
+    "-user-data", "-userdata", "-customer", "-client", "-partner", "-vendor",
+    "-third-party", "-external", "-outbound", "-inbound", "-incoming",
+    "-outgoing", "-processing", "-processed", "-raw-data", "-cleaned",
+    "-normalized", "-transformed", "-enriched", "-aggregated", "-summary",
+    "-metadata", "-index", "-indices", "-catalog", "-catalogue", "-manifest",
+    "-inventory", "-registry", "-directory", "-listing", "-feed", "-feeds",
+    "-stream", "-streams", "-events", "-notifications", "-alerts-data",
+    "-webhooks", "-hooks", "-callbacks", "-responses", "-requests",
+    "-sessions", "-tokens-store", "-auth", "-oauth", "-jwt",
+    "-terraform", "-ansible", "-chef", "-puppet", "-helm", "-k8s",
+    "-kubernetes", "-docker", "-containers", "-images-repo",
     # Environment tags
     "-prd", "-stg", "-tst", "-dev", "-local", "-local-dev", "-local-test", "-localdev",
 ]
@@ -3230,6 +3300,20 @@ AWS_S3_CHECKS = [
     "https://s3.amazonaws.com/{name}",
     # Virtual-hosted style (preferred, per AWS best practices)
     "https://{name}.s3.amazonaws.com",
+    # Static website hosting endpoints (keyword+website pattern)
+    "https://{name}.s3-website.us-east-1.amazonaws.com",
+    "https://{name}.s3-website.us-east-2.amazonaws.com",
+    "https://{name}.s3-website.us-west-1.amazonaws.com",
+    "https://{name}.s3-website.us-west-2.amazonaws.com",
+    "https://{name}.s3-website.eu-west-1.amazonaws.com",
+    "https://{name}.s3-website.eu-central-1.amazonaws.com",
+    "https://{name}.s3-website.ap-southeast-1.amazonaws.com",
+    "https://{name}.s3-website.ap-northeast-1.amazonaws.com",
+    "https://{name}.s3-website-us-east-1.amazonaws.com",
+    "https://{name}.s3-website-us-west-2.amazonaws.com",
+    "https://{name}.s3-website-eu-west-1.amazonaws.com",
+    "https://{name}.s3-website-ap-southeast-1.amazonaws.com",
+    "https://{name}.s3-website-ap-northeast-1.amazonaws.com",
     # Multi-region endpoints  (lazys3 covers these)
     "https://{name}.s3.us-east-1.amazonaws.com",
     "https://{name}.s3.us-east-2.amazonaws.com",
@@ -4323,6 +4407,10 @@ def main():
         elif not getattr(args,"url",None):
             mode_parser.error("-u/--url is required")
 
+        # Normalize backslash separators typed on Windows or copy-pasted paths
+        if getattr(args, "wordfile", None) and args.wordfile not in ("-", None):
+            args.wordfile = args.wordfile.replace("\\", "/")
+
         try:
             scanner = PathPlunderer(
                 url=args.url, wordfile=getattr(args,"wordfile","-"),
@@ -4529,7 +4617,7 @@ def main():
                 keywords=getattr(args,"keywords",[]),
                 keyfile=getattr(args,"keyfile",None),
                 mutations=getattr(args,"mutations",None),
-                threads=getattr(args,"threads",5),
+                threads=getattr(args,"threads",150),
                 nameserver=getattr(args,"nameserver",None),
                 logfile=getattr(args,"logfile",None),
                 log_format=getattr(args,"log_format","text"),
