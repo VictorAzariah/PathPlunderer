@@ -904,6 +904,8 @@ class PathPlunderer:
         extract_links: bool = False,
         wp_detect: bool = False,
         probe: bool = False,
+        list_dir: bool = False,       # --list-dir: enumerate files in open dir-listings
+        no_redirect: bool = False,    # --no-redirect: treat user URL as fixed base, skip precheck redirect
         crawl: bool = True,          # NEW: crawl base URL for links
         rate_limit: float = DEFAULT_RATE_LIMIT,
         delay: float = 0.0,
@@ -1028,6 +1030,8 @@ class PathPlunderer:
         self.do_extract_links   = extract_links
         self.wp_detect           = wp_detect
         self.probe              = probe
+        self.list_dir           = list_dir
+        self.no_redirect        = no_redirect
         self.crawl              = crawl
         self.rate_limiter    = RateLimiter(rate_limit)
         self.delay           = delay
@@ -1969,6 +1973,66 @@ class PathPlunderer:
         tqdm.write(Fore.CYAN + f"  [PROBE] Done — {found} finding(s) across {len(dirs)} director{'y' if len(dirs)==1 else 'ies'}." + Fore.RESET)
 
     # ──────────────────────────────────────────────────────────────────────
+    #  ENUMERATE DIR-LISTING  (--list-dir)
+    # ──────────────────────────────────────────────────────────────────────
+    def _enumerate_dir_listing(self, session: requests.Session, listing_url: str):
+        """Fetch an open directory listing, HEAD-check every linked file,
+        print each one with status + size under the [LIST-DIR] tag."""
+        resp = self._request(session, "GET", listing_url)
+        if resp is None or resp.status_code != 200:
+            return
+
+        parsed_base = urlparse(listing_url)
+        origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+
+        file_urls: List[str] = []
+        seen: set = set()
+        for m in re.finditer(r'<a\s[^>]*href=["\']([^"\'?#\s]+)["\']', resp.text, re.IGNORECASE):
+            href = m.group(1).strip()
+            if not href or href in ("/", "../", "./") or href.startswith(("?", "#")):
+                continue
+            if href.startswith("http://") or href.startswith("https://"):
+                full = href
+            elif href.startswith("/"):
+                full = origin + href
+            else:
+                full = listing_url.rstrip("/") + "/" + href.lstrip("/")
+            if not full.startswith(listing_url.rstrip("/")):
+                continue
+            norm = full.rstrip("/").lower()
+            if norm in seen:
+                continue
+            seen.add(norm)
+            file_urls.append(full)
+
+        if not file_urls:
+            return
+
+        tqdm.write(Fore.YELLOW + f"\n  [LIST-DIR] {len(file_urls)} item(s) in {listing_url}" + Fore.RESET)
+
+        def _check_file(url: str):
+            if self._stop.is_set(): return
+            r = self._request(session, "HEAD", url)
+            if r is None: r = self._request(session, "GET", url)
+            if r is None or r.status_code == 404: return
+            size = int(r.headers.get("Content-Length", 0))
+            sc_col = (Fore.GREEN if r.status_code < 300 else
+                      Fore.BLUE  if r.status_code < 400 else Fore.YELLOW)
+            line = f"  [LIST-DIR] {sc_col}{r.status_code}{Fore.RESET}  {size:>9}c  {url}"
+            result = ScanResult(url=url, status=r.status_code, size=size, method="HEAD", note="LIST-DIR")
+            with self._lock: self.results.append(result)
+            with self._print_lock:
+                tqdm.write(line)
+                if self.logfile: self._log(line)
+
+        with ThreadPoolExecutor(max_workers=min(self.threads, 20)) as ex:
+            futs = [ex.submit(_check_file, u) for u in file_urls]
+            for f in as_completed(futs):
+                if self._stop.is_set(): break
+                try: f.result()
+                except Exception: pass
+
+    # ──────────────────────────────────────────────────────────────────────
     #  PRECHECKS + CALIBRATION
     # ──────────────────────────────────────────────────────────────────────
     def _prechecks(self, session: requests.Session) -> bool:
@@ -1976,11 +2040,14 @@ class PathPlunderer:
         if not self.url or self.url in ("http://", "https://", "http:/", "https:/"):
             tqdm.write(Fore.RED + "  [!] Invalid or empty URL — use -u https://target.com" + Fore.RESET)
             return False
+        if self.no_redirect:
+            tqdm.write(Fore.CYAN + "  [*] --no-redirect: using provided URL as fixed base, skipping redirect follow." + Fore.RESET)
+            # Still calibrate latency but skip the redirect-follow entirely
         try:
             probe = session.get(self.url, timeout=15, allow_redirects=True,
                                 verify=not self.insecure,
                                 proxies={"http": self.proxy_url, "https": self.proxy_url} if self.proxy_url else None)
-            if probe.url != self.url:
+            if probe.url != self.url and not self.no_redirect:
                 landed       = probe.url
                 orig_parsed  = urlparse(self.url)
                 land_parsed  = urlparse(landed)
@@ -2351,6 +2418,15 @@ class PathPlunderer:
         if self.probe and not self._stop.is_set():
             probe_targets = sorted(d for d in scanned if d not in self.dir_listing_dirs)
             self._probe_all_dirs(session, probe_targets)
+
+        # PHASE 2b — List-dir: enumerate files inside every open directory listing
+        if self.list_dir and not self._stop.is_set() and self.dir_listing_dirs:
+            tqdm.write(Fore.YELLOW + Style.BRIGHT
+                + f"\n  [LIST-DIR] Enumerating {len(self.dir_listing_dirs)} open listing(s)..."
+                + Style.RESET_ALL)
+            for listing_url in sorted(self.dir_listing_dirs):
+                if self._stop.is_set(): break
+                self._enumerate_dir_listing(session, listing_url)
 
         # PHASE 3 — 403 Bypass
         if self.bypass_403 and not self._stop.is_set():
@@ -3784,8 +3860,9 @@ def _build_dir_parser() -> argparse.ArgumentParser:
                    help="Disable all recursion including smart-recurse (completely flat scan)")
     g.add_argument("--depth",         metavar="N",          dest="depth",   type=int, default=DEFAULT_DEPTH,
                    help=f"Max recursion depth  (default: {DEFAULT_DEPTH})   —   applies to both smart and full recurse")
-    g.add_argument("--force",        action="store_true",  dest="force",   default=False, help="Scan even when wildcard response detected")
-    g.add_argument("--no-crawl",     action="store_false", dest="crawl",   default=True,  help="Disable auto-crawl of base URL for extra paths  (crawl is ON by default)")
+    g.add_argument("--force",        action="store_true",  dest="force",        default=False, help="Scan even when wildcard response detected")
+    g.add_argument("--no-redirect",  action="store_true",  dest="no_redirect",  default=False, help="Use the provided URL as-is — ignore any redirect the server returns during calibration")
+    g.add_argument("--no-crawl",     action="store_false", dest="crawl",        default=True,  help="Disable auto-crawl of base URL for extra paths  (crawl is ON by default)")
     g.add_argument("--dont-scan",    metavar="PAT",        dest="dont_scan",nargs="*", default=[], help="URL substrings to never request")
     g.add_argument("--resp-limit",   metavar="BYTES",      dest="response_size_limit", type=int, default=DEFAULT_RESP_LIMIT, help=f"Max body bytes to read per response  (default: {DEFAULT_RESP_LIMIT//1024}KB)")
 
@@ -3825,6 +3902,8 @@ def _build_dir_parser() -> argparse.ArgumentParser:
     g = p.add_argument_group("Probe & Secret Extraction")
     g.add_argument("--probe",     action="store_true", dest="probe",           default=False,
                    help="Probe ~130 well-known sensitive paths: .git .env .htpasswd admin panels swagger actuator backups")
+    g.add_argument("--list-dir",  action="store_true", dest="list_dir",        default=False,
+                   help="Enumerate and HEAD-check every file inside open directory listings found during scan")
     g.add_argument("--secrets",   action="store_true", dest="extract_secrets", default=False,
                    help="Scan every response body for leaked credentials: AWS keys JWTs API tokens private keys .env dumps")
     g.add_argument("--wp-detect", action="store_true", dest="wp_detect",       default=False,
@@ -4042,7 +4121,7 @@ def _build_cloud_parser() -> argparse.ArgumentParser:
     g.add_argument("--disable-azure",  action="store_true", dest="disable_azure", default=False, help="Skip Azure Blob / DNS checks")
 
     g = p.add_argument_group("Options")
-    g.add_argument("-t",  "--threads",  metavar="N",         dest="threads",     type=int,   default=5,   help="HTTP threads  (default: 5)")
+    g.add_argument("-t",  "--threads",  metavar="N",         dest="threads",     type=int,   default=150, help="HTTP threads  (default: 150)")
     g.add_argument("--timeout","--to",  metavar="SEC",       dest="timeout",     type=int,   default=10,  help="HTTP timeout  (default: 10s)")
     g.add_argument("-ns", "--nameserver",metavar="IP",       dest="nameserver",  help="Custom DNS server  (for Azure DNS checks)")
     g.add_argument("-mf", "--max-files",metavar="N",         dest="max_files",   type=int,   default=5,   help="Max files to list from open buckets  (default: 5)")
@@ -4443,6 +4522,8 @@ def main():
                 extract_links=getattr(args,"extract_links",False),
                 wp_detect=getattr(args,"wp_detect",False),
                 probe=getattr(args,"probe",False),
+                list_dir=getattr(args,"list_dir",False),
+                no_redirect=getattr(args,"no_redirect",False),
                 crawl=getattr(args,"crawl",True),
                 rate_limit=getattr(args,"rate_limit",0),
                 delay=getattr(args,"delay",0.0),
