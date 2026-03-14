@@ -49,7 +49,36 @@ import difflib
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
-VERSION = "4.1"
+VERSION = "4.2"
+
+UPDATE_URL = "https://raw.githubusercontent.com/VictorAzariah/PathPlunderer/refs/heads/main/PathPlunderer.py"
+
+def _do_self_update():
+    """Download the latest PathPlunderer.py from GitHub and overwrite this file."""
+    import urllib.request, shutil, tempfile
+    this_file = Path(__file__).resolve()
+    print(f"  [UPDATE] Checking for updates from GitHub...")
+    try:
+        with urllib.request.urlopen(UPDATE_URL, timeout=30) as resp:
+            if resp.status != 200:
+                print(f"  [UPDATE] HTTP {resp.status} — could not fetch update."); return
+            content = resp.read()
+        # Extract version from downloaded content
+        remote_ver = "?"
+        for line in content.decode("utf-8", errors="replace").splitlines()[:30]:
+            if line.startswith("VERSION"):
+                remote_ver = line.split('"')[1] if '"' in line else line.split("'")[1] if "'" in line else "?"
+                break
+        print(f"  [UPDATE] Local: v{VERSION}  →  Remote: v{remote_ver}")
+        if remote_ver == VERSION:
+            print("  [UPDATE] Already up to date."); return
+        # Write to temp then replace
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".py", dir=this_file.parent) as tmp:
+            tmp.write(content); tmp_path = Path(tmp.name)
+        shutil.move(str(tmp_path), str(this_file))
+        print(f"  [UPDATE] ✓ Updated to v{remote_ver} — restart PathPlunderer.")
+    except Exception as e:
+        print(f"  [UPDATE] Failed: {e}")
 IS_WINDOWS = platform.system() == "Windows"
 
 DEFAULT_STATUS_CODES = [200, 204, 301, 302, 307, 401, 403]
@@ -906,6 +935,7 @@ class PathPlunderer:
         probe: bool = False,
         list_dir: bool = False,       # --list-dir: enumerate files in open dir-listings
         no_redirect: bool = False,    # --no-redirect: treat user URL as fixed base, skip precheck redirect
+        param_mine: bool = False,     # --param-mine: discover hidden GET/POST parameters
         crawl: bool = True,          # NEW: crawl base URL for links
         rate_limit: float = DEFAULT_RATE_LIMIT,
         delay: float = 0.0,
@@ -1032,6 +1062,7 @@ class PathPlunderer:
         self.probe              = probe
         self.list_dir           = list_dir
         self.no_redirect        = no_redirect
+        self.param_mine         = param_mine
         self.crawl              = crawl
         self.rate_limiter    = RateLimiter(rate_limit)
         self.delay           = delay
@@ -1893,6 +1924,265 @@ class PathPlunderer:
         "/phpMyAdmin","/phpmyadmin","/pma","/adminer.php",
     ]
 
+    # ──────────────────────────────────────────────────────────────────────
+    #  PARAMETER MINING  (--param-mine)
+    # ──────────────────────────────────────────────────────────────────────
+    # Methodology based on PortSwigger Param Miner:
+    #   1. Baseline every target URL (GET + POST) — record size/hash/headers
+    #   2. Inject candidate params in batches with a cache-buster
+    #   3. A hit = response differs from baseline by >10% size OR reflects value
+    #   4. Confirm each hit individually to eliminate false positives
+    #   5. Also probe X-* / custom headers for hidden server behaviour
+    # ──────────────────────────────────────────────────────────────────────
+    PARAM_WORDLIST_BUILTIN = [
+        # Common web params
+        "id","page","q","query","search","s","keyword","k","term","t","type",
+        "action","do","cmd","command","exec","run","func","function","method",
+        "view","show","display","format","output","mode","lang","language","locale",
+        "redirect","url","uri","next","return","returnUrl","return_url","ref","referrer",
+        "callback","cb","file","path","dir","folder","name","user","username","email",
+        "pass","password","token","key","secret","auth","api_key","apikey","access_token",
+        "debug","test","verbose","log","trace","version","v","limit","offset","count",
+        "size","from","to","start","end","sort","order","orderby","order_by","filter",
+        "fields","include","exclude","expand","embed","depth","level","max","min",
+        "timestamp","ts","date","time","nonce","state","code","hash","sig","signature",
+        "source","src","dest","target","host","port","proto","scheme","domain",
+        "category","tag","tags","label","group","role","scope","context","config",
+        "data","body","content","text","msg","message","payload","input","value",
+        "output","result","response","status","error","err","code","reason",
+        "callback_url","webhook","notify","notification","event","trigger","hook",
+        "download","upload","import","export","convert","transform","parse","render",
+        "template","theme","skin","style","layout","widget","module","plugin","addon",
+        "preview","draft","publish","delete","remove","create","update","edit","new",
+        "list","all","full","raw","json","xml","csv","pdf","xls","zip",
+        "admin","superuser","root","sudo","privileged","elevated","internal","private",
+        "cache","nocache","no_cache","fresh","force","override","bypass","skip",
+        "reload","refresh","clear","flush","reset","init","setup","install",
+        "report","analytics","stats","metrics","monitor","health","ping","status",
+        "db","database","table","collection","schema","index","record","row","column",
+        "session","cookie","csrf","xsrf","nonce","challenge","captcha",
+        "width","height","x","y","w","h","cx","cy","zoom","scale","rotate","crop",
+        "quality","dpi","color","colour","bg","background","fg","foreground",
+        "title","subtitle","description","label","placeholder","hint",
+        "price","amount","quantity","qty","total","currency","discount","tax",
+        "username","login","logout","signup","register","account","profile","settings",
+        "object","class","method","property","attribute","field","param","parameter",
+        "ajax","async","sync","stream","ws","socket","channel","queue","topic",
+        "forward","proxy","gateway","tunnel","relay","bridge","route","path",
+        "match","pattern","regex","replace","rewrite","map","transform",
+        "X-Forwarded-For","X-Real-IP","X-Custom-Header","X-Debug","X-Token",
+        "X-API-Key","X-Auth-Token","X-Session-Id","X-Request-Id","X-Trace-Id",
+        "Authorization","Cookie","Origin","Referer","Accept","Content-Type",
+    ]
+
+    def _mine_params(self, session: requests.Session, urls: List[str]):
+        """Discover hidden GET, POST and header parameters via param-miner methodology."""
+        if not urls:
+            return
+        tqdm.write(Fore.CYAN + f"\n  [PARAM-MINE] Mining parameters across {len(urls)} URL(s)..." + Fore.RESET)
+
+        # ── Build candidate list ───────────────────────────────────────────
+        # Pull params already visible in existing result URLs (free signal)
+        existing_params: List[str] = []
+        for r in self.results:
+            qs = urlparse(r.url).query
+            if qs:
+                existing_params.extend(k for k, _ in __import__("urllib.parse", fromlist=["parse_qs"]).parse_qs(qs).items())
+
+        candidates: List[str] = list(dict.fromkeys(
+            existing_params + list(self.discovered_words) + self.PARAM_WORDLIST_BUILTIN
+        ))
+        header_candidates = [p for p in candidates if p.startswith("X-") or p in (
+            "Authorization", "Cookie", "Origin", "Referer", "Accept", "Content-Type")]
+        param_candidates = [p for p in candidates if p not in header_candidates]
+
+        tqdm.write(Fore.CYAN + f"  [PARAM-MINE] {len(param_candidates)} param candidates, "
+                   f"{len(header_candidates)} header candidates" + Fore.RESET)
+
+        total_found = 0
+        BATCH = 16   # params per request — balance speed vs WAF detection
+
+        import random, hashlib, json as _json
+
+        def _random_val() -> str:
+            return "pp" + "".join(random.choices("abcdefghijklmnop0123456789", k=6))
+
+        def _page_hash(text: str) -> str:
+            return hashlib.md5(text.encode("utf-8", errors="replace")).hexdigest()
+
+        def _diff_score(base_text: str, new_text: str, base_size: int, new_size: int) -> float:
+            """0–1 score: higher = more different from baseline."""
+            size_delta = abs(new_size - base_size) / max(base_size, 1)
+            return size_delta
+
+        pbar = tqdm(total=len(urls), desc="  param-mine", unit="url", leave=False) if not self.no_progress else None
+
+        for target_url in urls:
+            if self._stop.is_set(): break
+            parsed = urlparse(target_url)
+            if parsed.path.rsplit(".", 1)[-1].lower() in {
+                "css","js","png","jpg","jpeg","gif","ico","svg","woff","woff2","ttf","map","eot"
+            }:
+                if pbar: pbar.update(1)
+                continue
+
+            # ── Baseline ──────────────────────────────────────────────────
+            buster = _random_val()
+            base_url_cb = target_url + ("&" if "?" in target_url else "?") + f"__cb={buster}"
+            br = self._request(session, "GET", base_url_cb)
+            if pbar: pbar.update(1)
+            if br is None or br.status_code >= 500:
+                continue
+            base_size   = len(br.content)
+            base_text   = br.text
+            base_hash   = _page_hash(base_text)
+            base_status = br.status_code
+
+            found_get: List[str]     = []
+            found_post: List[str]    = []
+            found_json: List[str]    = []
+            found_headers: List[str] = []
+
+            # ── GET param batch scan ───────────────────────────────────────
+            for i in range(0, len(param_candidates), BATCH):
+                if self._stop.is_set(): break
+                batch = param_candidates[i:i+BATCH]
+                param_vals = {p: _random_val() for p in batch}
+                qs = "&".join(f"{p}={v}" for p, v in param_vals.items())
+                test_url = target_url + ("&" if "?" in target_url else "?") + qs + f"&__cb={_random_val()}"
+                resp = self._request(session, "GET", test_url)
+                if resp is None: continue
+                if _diff_score(base_text, resp.text, base_size, len(resp.content)) < 0.08 \
+                        and _page_hash(resp.text) == base_hash:
+                    continue
+                # Batch triggered — confirm each param individually
+                for p, v in param_vals.items():
+                    if self._stop.is_set(): break
+                    confirm_url = target_url + ("&" if "?" in target_url else "?") + f"{p}={v}&__cb={_random_val()}"
+                    cr = self._request(session, "GET", confirm_url)
+                    if cr is None: continue
+                    reflected   = v in cr.text
+                    diff        = _diff_score(base_text, cr.text, base_size, len(cr.content))
+                    if diff >= 0.08 or reflected:
+                        tag = " ⚑ reflected" if reflected else ""
+                        found_get.append(f"{p}{tag}")
+
+            # ── POST form-encoded batch scan ───────────────────────────────
+            post_base = self._request(session, "POST", target_url,
+                                      data="__cb=" + _random_val(),
+                                      headers={"Content-Type": "application/x-www-form-urlencoded"})
+            if post_base and post_base.status_code not in (404, 405, 501):
+                pb_size = len(post_base.content); pb_hash = _page_hash(post_base.text)
+                for i in range(0, len(param_candidates), BATCH):
+                    if self._stop.is_set(): break
+                    batch = param_candidates[i:i+BATCH]
+                    param_vals = {p: _random_val() for p in batch}
+                    body = "&".join(f"{p}={v}" for p, v in param_vals.items()) + "&__cb=" + _random_val()
+                    resp = self._request(session, "POST", target_url, data=body,
+                                         headers={"Content-Type": "application/x-www-form-urlencoded"})
+                    if resp is None: continue
+                    if _diff_score(post_base.text, resp.text, pb_size, len(resp.content)) < 0.08 \
+                            and _page_hash(resp.text) == pb_hash:
+                        continue
+                    for p, v in param_vals.items():
+                        if self._stop.is_set(): break
+                        cb_body = f"{p}={v}&__cb=" + _random_val()
+                        cr = self._request(session, "POST", target_url, data=cb_body,
+                                            headers={"Content-Type": "application/x-www-form-urlencoded"})
+                        if cr is None: continue
+                        diff = _diff_score(post_base.text, cr.text, pb_size, len(cr.content))
+                        reflected = v in cr.text
+                        if diff >= 0.08 or reflected:
+                            tag = " ⚑ reflected" if reflected else ""
+                            found_post.append(f"{p}{tag}")
+
+            # ── POST JSON body scan ────────────────────────────────────────
+            # Many modern APIs accept JSON — probe with {"param": "value", ...}
+            json_base = self._request(session, "POST", target_url,
+                                      data=_json.dumps({"__cb": _random_val()}),
+                                      headers={"Content-Type": "application/json"})
+            if json_base and json_base.status_code not in (404, 405, 415, 501):
+                jb_size = len(json_base.content); jb_hash = _page_hash(json_base.text)
+                for i in range(0, len(param_candidates), BATCH):
+                    if self._stop.is_set(): break
+                    batch = param_candidates[i:i+BATCH]
+                    param_vals = {p: _random_val() for p in batch}
+                    body = _json.dumps(dict(param_vals, __cb=_random_val()))
+                    resp = self._request(session, "POST", target_url, data=body,
+                                         headers={"Content-Type": "application/json"})
+                    if resp is None: continue
+                    if _diff_score(json_base.text, resp.text, jb_size, len(resp.content)) < 0.08 \
+                            and _page_hash(resp.text) == jb_hash:
+                        continue
+                    for p, v in param_vals.items():
+                        if self._stop.is_set(): break
+                        cb_body = _json.dumps({p: v, "__cb": _random_val()})
+                        cr = self._request(session, "POST", target_url, data=cb_body,
+                                            headers={"Content-Type": "application/json"})
+                        if cr is None: continue
+                        diff = _diff_score(json_base.text, cr.text, jb_size, len(cr.content))
+                        reflected = v in cr.text
+                        if diff >= 0.08 or reflected:
+                            tag = " ⚑ reflected" if reflected else ""
+                            found_json.append(f"{p}{tag}")
+
+            # ── Header param scan ──────────────────────────────────────────
+            for hdr in header_candidates:
+                if self._stop.is_set(): break
+                v = _random_val()
+                resp = self._request(session, "GET", target_url, headers={hdr: v})
+                if resp is None: continue
+                diff = _diff_score(base_text, resp.text, base_size, len(resp.content))
+                reflected = v in resp.text
+                if diff >= 0.08 or reflected:
+                    tag = " ⚑ reflected" if reflected else ""
+                    found_headers.append(f"{hdr}{tag}")
+
+            # ── Report findings ────────────────────────────────────────────
+            if found_get or found_post or found_json or found_headers:
+                tqdm.write(Fore.GREEN + Style.BRIGHT
+                           + f"\n  [PARAM-MINE] ✓ {target_url}" + Style.RESET_ALL)
+                for p in sorted(set(found_get)):
+                    xss_note = "  ← value reflected — potential XSS/injection" if "⚑" in p else ""
+                    line = f"  [PARAM-MINE]   GET    ?{p.split()[0]}=<value>{xss_note}"
+                    tqdm.write(Fore.GREEN + line + Fore.RESET)
+                    if self.logfile: self._log(line)
+                    with self._lock: self.results.append(
+                        ScanResult(url=f"{target_url}?{p.split()[0]}=VALUE",
+                                   status=base_status, size=base_size,
+                                   method="GET", note=f"PARAM:{p}"))
+                    total_found += 1
+                for p in sorted(set(found_post)):
+                    xss_note = "  ← value reflected" if "⚑" in p else ""
+                    line = f"  [PARAM-MINE]   POST   {p.split()[0]}=<value>{xss_note}"
+                    tqdm.write(Fore.GREEN + line + Fore.RESET)
+                    if self.logfile: self._log(line)
+                    with self._lock: self.results.append(
+                        ScanResult(url=target_url, status=base_status, size=base_size,
+                                   method="POST", note=f"PARAM-POST:{p}"))
+                    total_found += 1
+                for p in sorted(set(found_json)):
+                    xss_note = "  ← value reflected" if "⚑" in p else ""
+                    line = f"  [PARAM-MINE]   JSON   {p.split()[0]}=<value>{xss_note}"
+                    tqdm.write(Fore.CYAN + line + Fore.RESET)
+                    if self.logfile: self._log(line)
+                    with self._lock: self.results.append(
+                        ScanResult(url=target_url, status=base_status, size=base_size,
+                                   method="POST", note=f"PARAM-JSON:{p}"))
+                    total_found += 1
+                for h in sorted(set(found_headers)):
+                    xss_note = "  ← value reflected" if "⚑" in h else ""
+                    line = f"  [PARAM-MINE]   HEADER {h.split()[0]}: <value>{xss_note}"
+                    tqdm.write(Fore.CYAN + line + Fore.RESET)
+                    if self.logfile: self._log(line)
+                    with self._lock: self.results.append(
+                        ScanResult(url=target_url, status=base_status, size=base_size,
+                                   method="GET", note=f"PARAM-HDR:{h}"))
+                    total_found += 1
+
+        if pbar: pbar.close()
+        tqdm.write(Fore.CYAN + f"\n  [PARAM-MINE] Done — {total_found} parameter(s) discovered." + Fore.RESET)
+
     def _probe_all_dirs(self, session: requests.Session, dirs: List[str]):
         """Probe every scanned directory (excluding confirmed dir-listing dirs) for
         well-known sensitive paths.  Runs as one consolidated section so output
@@ -2077,19 +2367,33 @@ class PathPlunderer:
         except requests.exceptions.ProxyError as e:
             tqdm.write(Fore.RED + f"  [!] Proxy error: {e}" + Fore.RESET)
             return False
+        except (requests.exceptions.ConnectTimeout,
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.Timeout):
+            tqdm.write(Fore.RED
+                + f"  [!] Connection timed out reaching {self.url}"
+                + f"\n      → Try --timeout {max(30, self.timeout * 2)} to allow more time,"
+                + f" or check that the host is reachable."
+                + Fore.RESET)
+            return False
         except requests.exceptions.ConnectionError as e:
             err_str = str(e).lower()
+            # ConnectTimeout sometimes surfaces as ConnectionError — catch it here too
+            if "connect timeout" in err_str or "timed out" in err_str:
+                tqdm.write(Fore.RED
+                    + f"  [!] Connection timed out reaching {self.url}"
+                    + f"\n      → Try --timeout {max(30, self.timeout * 2)} to allow more time,"
+                    + f" or check that the host is reachable."
+                    + Fore.RESET)
+                return False
             hint = ""
             if "ssl" in err_str or "certificate" in err_str:
                 hint = "\n      → Try -k / --insecure to skip TLS verification"
-            elif "name or service not known" in err_str or "nodename nor servname" in err_str:
+            elif "name or service not known" in err_str or "nodename nor servname" in err_str or "getaddrinfo" in err_str:
                 hint = "\n      → Check the hostname is correct and DNS resolves"
             elif "connection refused" in err_str:
                 hint = "\n      → Is the server running and port open?"
             tqdm.write(Fore.RED + f"  [!] Cannot reach {self.url}{hint}\n      ({e})" + Fore.RESET)
-            return False
-        except requests.exceptions.Timeout:
-            tqdm.write(Fore.RED + f"  [!] Server timeout (15s) — try --timeout 30" + Fore.RESET)
             return False
         except Exception as e:
             tqdm.write(Fore.RED + f"  [!] Connection error: {e}" + Fore.RESET)
@@ -2427,6 +2731,20 @@ class PathPlunderer:
             for listing_url in sorted(self.dir_listing_dirs):
                 if self._stop.is_set(): break
                 self._enumerate_dir_listing(session, listing_url)
+
+        # PHASE 2c — Parameter mining (--param-mine)
+        if self.param_mine and not self._stop.is_set():
+            # Mine params on every discovered page URL (2xx responses that are HTML/text)
+            mine_targets = sorted({
+                r.url for r in self.results
+                if r.status in range(200, 300)
+                and not r.url.rsplit(".", 1)[-1].lower() in
+                    {"css","js","png","jpg","jpeg","gif","ico","svg","woff","woff2","ttf","map"}
+            })
+            # Always include the base URL too
+            if self.url not in mine_targets:
+                mine_targets = [self.url] + mine_targets
+            self._mine_params(session, mine_targets)
 
         # PHASE 3 — 403 Bypass
         if self.bypass_403 and not self._stop.is_set():
@@ -3904,6 +4222,8 @@ def _build_dir_parser() -> argparse.ArgumentParser:
                    help="Probe ~130 well-known sensitive paths: .git .env .htpasswd admin panels swagger actuator backups")
     g.add_argument("--list-dir",  action="store_true", dest="list_dir",        default=False,
                    help="Enumerate and HEAD-check every file inside open directory listings found during scan")
+    g.add_argument("--param-mine",action="store_true", dest="param_mine",      default=False,
+                   help="Mine hidden GET/POST/header parameters on discovered pages (param-miner methodology)")
     g.add_argument("--secrets",   action="store_true", dest="extract_secrets", default=False,
                    help="Scan every response body for leaked credentials: AWS keys JWTs API tokens private keys .env dumps")
     g.add_argument("--wp-detect", action="store_true", dest="wp_detect",       default=False,
@@ -3912,7 +4232,7 @@ def _build_dir_parser() -> argparse.ArgumentParser:
     # COMPOSITE SHORTCUTS
     g = p.add_argument_group("Composite Shortcuts")
     g.add_argument("--smart",    action="store_true", default=False, help="Enable: --collect-words + --discover-backup")
-    g.add_argument("--thorough", action="store_true", default=False, help="Enable: --smart + --collect-extensions + --probe + --secrets")
+    g.add_argument("--thorough", action="store_true", default=False, help="Enable: --smart + --collect-extensions + --probe + --param-mine + --secrets")
 
     # OUTPUT
     g = p.add_argument_group("Output")
@@ -4365,7 +4685,8 @@ def _print_root_help():
     tqdm.write(_divider("═"))
     tqdm.write(Fore.CYAN + Style.BRIGHT + "  USAGE" + Style.RESET_ALL)
     tqdm.write(f"    pathplunderer.py {Fore.YELLOW}-m <mode>{Style.RESET_ALL} [options]")
-    tqdm.write(f"    pathplunderer.py {Fore.YELLOW}-m <mode> --help{Style.RESET_ALL}  for mode-specific options\n")
+    tqdm.write(f"    pathplunderer.py {Fore.YELLOW}-m <mode> --help{Style.RESET_ALL}  for mode-specific options")
+    tqdm.write(f"    pathplunderer.py {Fore.YELLOW}--update{Style.RESET_ALL}           pull latest version from GitHub\n")
     tqdm.write(Fore.CYAN + Style.BRIGHT + "  MODES" + Style.RESET_ALL)
     for name, (_, color, desc) in MODES.items():
         tqdm.write(f"    {color + Style.BRIGHT}{name:<12}{Style.RESET_ALL}  {desc}")
@@ -4373,6 +4694,7 @@ def _print_root_help():
     tqdm.write(Fore.CYAN + Style.BRIGHT + "  EXAMPLES" + Style.RESET_ALL)
     examples = [
         ("dir",       "-u https://target.com -w common.txt --probe --secrets"),
+        ("dir",       "-u https://target.com -w common.txt --param-mine"),
         ("dir",       "-u https://target.com -w common.txt --bypass-403 --wayback"),
         ("dir",       "-u https://target.com -w common.txt --bypass-only"),
         ("dir",       "-u https://target.com -w common.txt --wayback-only --wayback-all"),
@@ -4404,6 +4726,10 @@ def main():
 
     if "--version" in raw_args:
         print(f"PathPlunderer v{VERSION}")
+        sys.exit(0)
+
+    if "--update" in raw_args:
+        _do_self_update()
         sys.exit(0)
 
     # Extract mode
@@ -4461,6 +4787,7 @@ def main():
         if hasattr(args,"thorough") and args.thorough:
             args.smart = True; args.collect_extensions = True
             args.extract_secrets = True; args.probe = True
+            args.param_mine = True
         if hasattr(args,"smart") and args.smart:
             args.collect_words = True; args.collect_backups = True
 
@@ -4524,6 +4851,7 @@ def main():
                 probe=getattr(args,"probe",False),
                 list_dir=getattr(args,"list_dir",False),
                 no_redirect=getattr(args,"no_redirect",False),
+                param_mine=getattr(args,"param_mine",False),
                 crawl=getattr(args,"crawl",True),
                 rate_limit=getattr(args,"rate_limit",0),
                 delay=getattr(args,"delay",0.0),
