@@ -39,7 +39,7 @@
 PathPlunderer is a Python web recon tool built for offensive security work. It combines directory brute-forcing, 403 bypass, parameter mining, subdomain enumeration, virtual host discovery, parameter fuzzing, multi-cloud bucket enumeration, and WordPress XML-RPC brute-force — all in one unified CLI with clean, aligned output.
 
 ```bash
-python pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --param-mine --bypass-403 --wayback --wayback-filter-status 200,301
+python pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --bypass-403 --wayback --wayback-filter-status 200,301
 ```
 
 <p align="center">
