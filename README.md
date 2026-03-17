@@ -71,7 +71,7 @@ python pathplunderer.py -m <mode> --help
 
 | Mode | 💡 What it does |
 |------|----------------|
-| 🗂️ `dir` | Directory & file brute-force — smart recurse, 403 bypass, crawl, Wayback, secrets, WP detection |
+| 🗂️ `dir` | Directory & file brute-force — smart recurse, 403 bypass, parameter mining, crawl, Wayback, secrets, WP detection |
 | 🌐 `subdomain` | DNS subdomain enumeration |
 | 🖥️ `vhost` | Virtual host discovery via `Host:` header manipulation |
 | 🎯 `fuzz` | URL / body / header fuzzer — replaces `FUZZ` keyword anywhere |
