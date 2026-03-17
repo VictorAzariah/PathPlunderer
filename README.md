@@ -159,7 +159,7 @@ Feroxbuster-style fixed-width columns — status, method, lines, words, bytes, U
 python pathplunderer.py -m dir -u https://target.com
 
 # With extensions + full recon suite
-python pathplunderer.py -m dir -u https://target.com -w wordlists/directory-list-2.3-medium.txt -x php,html,txt --probe --secrets --bypass-403 --wayback --wayback-filter-status 200,301
+python pathplunderer.py -m dir -u https://target.com -w wordlists/directory-list-2.3-medium.txt -x php,zip --probe --secrets --bypass-403 --wayback --param-mine
 
 # Bypass-only mode (skip wordlist scan)
 python pathplunderer.py -m dir -u https://target.com/admin --bypass-only
