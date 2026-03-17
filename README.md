@@ -36,10 +36,10 @@
 
 ## 🧰 Overview
 
-PathPlunderer is a Python web recon tool built for offensive security work. It combines directory brute-forcing, 403 bypass, subdomain enumeration, virtual host discovery, parameter fuzzing, multi-cloud bucket enumeration, and WordPress XML-RPC brute-force — all in one unified CLI with clean, aligned output.
+PathPlunderer is a Python web recon tool built for offensive security work. It combines directory brute-forcing, 403 bypass, parameter mining, subdomain enumeration, virtual host discovery, parameter fuzzing, multi-cloud bucket enumeration, and WordPress XML-RPC brute-force — all in one unified CLI with clean, aligned output.
 
 ```bash
-python pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --bypass-403 --wayback --wayback-filter-status 200,301
+python pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --param-mine --bypass-403 --wayback --wayback-filter-status 200,301
 ```
 
 <p align="center">
@@ -48,7 +48,7 @@ python pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --
 
 ---
 
-## ⚡ Install
+## ⚡ Install & Update
 
 ```bash
 git clone https://github.com/VictorAzariah/PathPlunderer
@@ -57,6 +57,8 @@ pip install -r requirements.txt
 ```
 
 > **Dependencies:** `colorama` · `requests` · `tqdm` · `dnspython`
+
+> **Keep it updated:** Run `python pathplunderer.py --update` at any time to automatically pull the latest version directly from GitHub.
 
 ---
 
@@ -111,12 +113,12 @@ PathPlunderer doesn't just scan what is currently on the server; it looks at wha
 * **Smart Filtering:** Use `--wayback-filter-status` to easily cut through the noise and only return active or forbidden pages (e.g., 200, 301, 403).
 * **Passive Recon:** Use `--wayback-all` to instantly dump every known historical URL without sending a single aggressive request to the target server.
 
-### 📂 Directory Listing Detection *(always on)*
+### 📂 Directory Listing Detection & Enumeration
 
-Automatically detects open `Index of /` listings and alerts you immediately — without flooding output with every file inside:
+Automatically detects open `Index of /` listings and alerts you immediately. By default, it won't flood your terminal with files. However, you can use `--list-dir` to force PathPlunderer to parse the listing and automatically `HEAD`-check every exposed file:
 
-```
-[DIR-LIST] Open directory listing: https://target.com/uploads/
+```bash
+python pathplunderer.py -m dir -u [https://target.com](https://target.com) --list-dir
 ```
 
 ### 🕷️ Post-Scan Crawl *(always on)*
@@ -139,15 +141,16 @@ Feroxbuster-style fixed-width columns — status, method, lines, words, bytes, U
 
 ### ⚙️ Scan Phases
 
-| # | Phase | Triggered by |
+| \# | Phase | Triggered by |
 |---|-------|-------------|
 | 1 | 🔧 Server calibration — latency, timeout, wildcard detection | always |
 | 2 | 📋 **Dir scan** — wordlist × extensions, smart-recursive | always |
 | 3 | 🕷️ **Crawl** — visit found pages, surface missed URLs | always |
 | 4 | 🔭 **Probe** — 130+ known sensitive paths | `--probe` |
-| 5 | 🔓 **403 Bypass** — 100+ bypass techniques | `--bypass-403` |
-| 6 | 🔑 **Secrets** — scan responses for leaked credentials | `--secrets` |
-| 7 | 🕰️ **Wayback** — query Wayback Machine CDX API | `--wayback` |
+| 5 | ⛏️ **Param Mine** — discover hidden GET/POST parameters | `--param-mine` |
+| 6 | 🔓 **403 Bypass** — 100+ bypass techniques | `--bypass-403` |
+| 7 | 🔑 **Secrets** — deep-crawl responses for leaked credentials | `--secrets` |
+| 8 | 🕰️ **Wayback** — query Wayback Machine CDX API | `--wayback` |
 
 ### 📌 Examples
 
@@ -164,12 +167,23 @@ python pathplunderer.py -m dir -u https://target.com/admin --bypass-only
 # Wayback dump only
 python pathplunderer.py -m dir -u https://target.com --wayback-only --wayback-all --wayback-filter-status 200,301
 
+# Parameter Mining
+python pathplunderer.py -m dir -u [https://target.com](https://target.com) --param-mine
+
 # WordPress theme + plugin version detection
 python pathplunderer.py -m dir -u https://wpsite.com -x php --wp-detect
 
 # High-speed scan
 python pathplunderer.py -m dir -u https://target.com -w wordlists/raft-large-words.txt -t 100
 ```
+
+### ⛏️ Parameter Mining (`--param-mine`)
+
+Using techniques popularized by PortSwigger's Param Miner, PathPlunderer automatically injects batches of parameters with cache-busters to discover hidden endpoints and custom headers on all discovered pages.
+
+  * Evaluates GET queries, POST form-data, JSON bodies, and `X-*` headers.
+  * Analyzes response length and body hashes to rule out false positives.
+  * Detects parameter reflection to identify potential XSS vulnerabilities on the fly.
 
 ### 🔓 403 Bypass Techniques
 
@@ -184,6 +198,7 @@ PathPlunderer runs **100+ bypass techniques** on every 403 response:
 ### 🔑 Secrets Detection
 
 40+ patterns — including: AWS access keys · GCP service account JSON · private keys (RSA/EC/PGP) · JWTs · Stripe / Shopify / Twilio / SendGrid API keys · Slack webhooks · GitHub / GitLab tokens · Telegram bot tokens · database connection strings · `.env` variable dumps
+**v4.2 Update:** The secrets module now performs a secondary deep-crawl on found endpoints specifically looking for linked JavaScript or configuration files that contain hardcoded tokens.
 
 ### 🌐 WordPress Detection `--wp-detect`
 
