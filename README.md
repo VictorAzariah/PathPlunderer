@@ -327,6 +327,6 @@ For **authorized security testing only**. Ensure you have explicit written permi
 ---
 
 <div align="center">
-<i>PathPlunderer v4.1 · by Victor Azariah</i><br/>
+<i>PathPlunderer v4.2 · by Victor Azariah</i><br/>
 <i>Inspired by gobuster · feroxbuster · cloud_enum · lazys3 · SecLists</i>
 </div>
