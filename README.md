@@ -51,7 +51,7 @@ python pathplunderer.py -m dir -u https://target.com -x php --probe --secrets --
 ## ⚡ Install & Update
 
 ```bash
-git clone [https://github.com/VictorAzariah/PathPlunderer](https://github.com/VictorAzariah/PathPlunderer)
+git clone https://github.com/VictorAzariah/PathPlunderer
 cd PathPlunderer
 pip install -r requirements.txt
 ```
