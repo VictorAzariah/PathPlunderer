@@ -105,7 +105,7 @@ python pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --recu
 python pathplunderer.py -m dir -u https://target.com -w wordlists/big.txt --no-recurse
 ```
 
-### 🕰️ Wayback Machine CDX API
+### 🕰️ Wayback Machine CDX API integration
 
 PathPlunderer doesn't just scan what is currently on the server; it looks at what *used* to be there. By querying the Wayback Machine CDX API, it surfaces forgotten endpoints, exposed secrets in old files, and historical paths that might still be active but are no longer linked.
 
@@ -149,7 +149,7 @@ Feroxbuster-style fixed-width columns — status, method, lines, words, bytes, U
 | 4 | 🔭 **Probe** — 130+ known sensitive paths | `--probe` |
 | 5 | ⛏️ **Param Mine** — discover hidden GET/POST parameters | `--param-mine` |
 | 6 | 🔓 **403 Bypass** — 100+ bypass techniques | `--bypass-403` |
-| 7 | 🔑 **Secrets** — deep-crawl responses for leaked credentials | `--secrets` |
+| 7 | 🔑 **Secrets** — deep-crawl responses for leaked credentials with 40+ credential patterns | `--secrets` |
 | 8 | 🕰️ **Wayback** — query Wayback Machine CDX API | `--wayback` |
 
 ### 📌 Examples
