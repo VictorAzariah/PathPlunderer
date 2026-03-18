@@ -19,7 +19,7 @@
 `dir` · `subdomain` · `vhost` · `fuzz` · `cloud` · `xmlrpc`
 
 [![Python](https://img.shields.io/badge/python-3.8%2B-00BFFF?style=plastic&logo=python&logoColor=white)](https://python.org)
-[![Version](https://img.shields.io/badge/version-4.1-FF1493?style=plastic&logo=github&logoColor=white)](https://github.com/VictorAzariah/PathPlunderer/releases)
+[![Version](https://img.shields.io/badge/version-4.2-FF1493?style=plastic&logo=github&logoColor=white)](https://github.com/VictorAzariah/PathPlunderer/releases)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-00C853?style=plastic&logo=linux&logoColor=white)]()
 
 *Inspired by [gobuster](https://github.com/OJ/gobuster) · [feroxbuster](https://github.com/epi052/feroxbuster) · [cloud_enum](https://github.com/initstring/cloud_enum) · [lazys3](https://github.com/nahamsec/lazys3) · [SecLists](https://github.com/danielmiessler/SecLists)*
@@ -198,6 +198,7 @@ PathPlunderer runs **100+ bypass techniques** on every 403 response:
 ### 🔑 Secrets Detection
 
 40+ patterns — including: AWS access keys · GCP service account JSON · private keys (RSA/EC/PGP) · JWTs · Stripe / Shopify / Twilio / SendGrid API keys · Slack webhooks · GitHub / GitLab tokens · Telegram bot tokens · database connection strings · `.env` variable dumps
+
 **v4.2 Update:** The secrets module now performs a secondary deep-crawl on found endpoints specifically looking for linked JavaScript or configuration files that contain hardcoded tokens.
 
 ### 🌐 WordPress Detection `--wp-detect`
