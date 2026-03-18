@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PathPlunderer v4.1 - Web Directory & File Brute Forcer + 403 Bypass + Secret Extractor
+PathPlunderer v4.2 - Web Directory & File Brute Forcer + 403 Bypass + Secret Extractor + Param Miner + Wayback
                      Subdomain / VHost / Fuzz / Cloud / Xmlrpc
 by VICTOR AZARIAH
 """
